@@ -1,0 +1,6 @@
+{
+  "name": "Panel de Control de Ausentismo y TE",
+  "description": "Sistema empresarial para análisis, auditoría y seguimiento de reportes de asistencia y tiempo extra exportados de BioTime.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
