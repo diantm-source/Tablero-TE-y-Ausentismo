@@ -7,6 +7,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
   return {
+    base: '/Tablero-TE-y-Ausentismo/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
@@ -27,7 +28,4 @@ export default defineConfig(() => {
   };
 });
 
-export default defineConfig({
-  base: '/Tablero-TE-y-Ausentismo/',
-  plugins: [react()],
-})
+
