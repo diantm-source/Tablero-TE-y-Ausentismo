@@ -70,8 +70,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 z-20 shrink-0 h-full ${
-        isMobileDrawer ? 'w-full' : collapsed ? 'w-16' : 'w-64'
+      className={`bg-slate-900 border border-slate-800 flex flex-col transition-all duration-300 z-20 shrink-0 overflow-hidden shadow-sm ${
+        isMobileDrawer
+          ? 'w-full h-full rounded-none border-0'
+          : `rounded-3xl mt-0.5 mb-2.5 ml-4 ${collapsed ? 'w-16' : 'w-64'}`
       }`}
     >
       {/* Brand / Collapse toggle */}
@@ -88,7 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             onClick={onToggleCollapse}
             title={collapsed ? 'Expandir barra lateral' : 'Colapsar barra lateral'}
-            className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors mx-auto cursor-pointer"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors mx-auto cursor-pointer"
           >
             <i
               className={`bi ${collapsed ? 'bi-layout-sidebar-inset' : 'bi-layout-sidebar-inset-reverse'} text-lg`}
@@ -106,7 +108,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={item.id}
               onClick={() => onNavigate(item.id)}
               title={collapsed ? item.label : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs md:text-sm font-medium transition-all group ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all group cursor-pointer ${
                 isActive
                   ? 'bg-blue-600 text-white shadow-sm font-semibold'
                   : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'

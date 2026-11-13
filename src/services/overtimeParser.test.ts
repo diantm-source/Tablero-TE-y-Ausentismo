@@ -11,6 +11,7 @@ import {
   parseWeeklyMatrixWorkbook,
   enrichMatrixWithLeaders,
   getTurnoBadgeClass,
+  normalizeDeptKey,
 } from './overtimeParser';
 
 describe('Overtime Parser & Traffic Light Logic', () => {
@@ -674,6 +675,152 @@ describe('Overtime Parser & Traffic Light Logic', () => {
         expect(getTurnoBadgeClass('3er Turno')).toContain('purple');
         expect(getTurnoBadgeClass('1er Turno, 2do Turno')).toContain('teal');
         expect(getTurnoBadgeClass('Sin Turno')).toContain('slate');
+      });
+
+      describe('Normalización Inteligente de Departamentos y Parseo Robusto de la Matriz', () => {
+        it('normalizes department keys correctly with normalizeDeptKey', () => {
+          expect(normalizeDeptKey('GENERADOR VAPOR(CALDE')).toBe(normalizeDeptKey('GENERADORVAPOR(CALDE'));
+          expect(normalizeDeptKey('GENERADOR VAPOR(CALDE')).toBe('GENERADORVAPORCALDE');
+          expect(normalizeDeptKey('MANTENIMIENTO TLAX PQ')).toBe(normalizeDeptKey('MANTENIMIENTO TLAXPQ'));
+          expect(normalizeDeptKey('MANTENIMIENTO TLAX PQ')).toBe('MANTENIMIENTOTLAXPQ');
+          expect(normalizeDeptKey('PRODUCCIÓN (PLANTA 1)')).toBe('PRODUCCIONPLANTA1');
+          expect(normalizeDeptKey('')).toBe('');
+          expect(normalizeDeptKey(null)).toBe('');
+          expect(normalizeDeptKey(undefined)).toBe('');
+        });
+
+        it('reads hidden rows from visual autofilter (!rows), handles regional comma decimals and administrative text in Semana 45', () => {
+          const wb = XLSX.utils.book_new();
+
+          const headerRow = ['DEPTO', 'ACTIVO', 'CLAVE', 'NOMBRE', 'ID SAP', 'NV1', 'NV2', '*'];
+          const days = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO', 'DOMINGO'];
+          for (const d of days) {
+            headerRow.push(d, '', '');
+          }
+          headerRow.push('TOTAL'); // Col AD (index 29)
+
+          const shiftRow = ['', '', '', '', '', '', '', ''];
+          for (let i = 0; i < 7; i++) {
+            shiftRow.push('38', '39', '40');
+          }
+          shiftRow.push('');
+
+          // Empleado 1: 70006 - OCHOA TEGOMEX JUAN MANUEL (7.0 hrs totales)
+          // Departamento en matriz: GENERADORVAPOR(CALDE (sin espacio)
+          // Contiene coma decimal: "0,5" y "5,5" y textos administrativos: "vacaciones", "db7pg2"
+          const rowEmp1: any[] = ['GENERADORVAPOR(CALDE', 1, '70006', 'OCHOA TEGOMEX JUAN MANUEL', 'SAP-70006', '', '', ''];
+          // Lunes: T1="0,5" (prolongación), T2="vacaciones" (texto admin ignorado), T3="db7pg2" (texto admin ignorado)
+          rowEmp1.push('0,5', 'vacaciones', 'db7pg2');
+          // Martes: T1="5,5" (color = TE normal 5.5 hrs), T2="", T3="1,0" (prolongación 1.0 hr)
+          // Total de horas numéricas = 0.5 + 5.5 + 1.0 = 7.0 hrs
+          rowEmp1.push('5,5', '', '1,0');
+          // Miércoles a Domingo (15 celdas vacías o con textos admin)
+          rowEmp1.push('sindicato', 'd', 'pagado'); // Miércoles (todos ignorados)
+          rowEmp1.push('pg2', 'pg1', 'por 7 nov'); // Jueves (todos ignorados)
+          rowEmp1.push('dby pg1', 'db turno', 'rev led'); // Viernes (todos ignorados)
+          rowEmp1.push('por2', 'db2nov', ''); // Sábado (todos ignorados)
+          rowEmp1.push('', '', ''); // Domingo
+          rowEmp1.push('7,0'); // Col AD Total
+
+          // Empleado 2: 70016 - SANCHEZ FERNANDEZ ARTURO (13.0 hrs totales)
+          // Esta fila estará oculta por un Autofiltro visual simulado (ws['!rows'][5] = { hidden: true })
+          const rowEmp2: any[] = ['GENERADORVAPOR(CALDE', 1, '70016', 'SANCHEZ FERNANDEZ ARTURO', 'SAP-70016', '', '', ''];
+          // Lunes: T1=4.0 (color = TE normal), T2=4.0 (color = TE normal), T3=""
+          rowEmp2.push(4.0, 4.0, '');
+          // Martes: T1=5.0 (color = TE normal), T2="", T3=""
+          // Total = 4.0 + 4.0 + 5.0 = 13.0 hrs
+          rowEmp2.push(5.0, '', '');
+          for (let i = 0; i < 15; i++) {
+            rowEmp2.push('');
+          }
+          rowEmp2.push(13.0);
+
+          const aoa: any[][] = [
+            ['GRUPO INDUSTRIAL', 'DEL 02 AL 08 DE NOVIEMBRE 2026'],
+            ['MATRIZ SEMANAL DE TIEMPO EXTRA - SEMANA 45'],
+            headerRow,
+            shiftRow,
+            rowEmp1,
+            rowEmp2,
+          ];
+
+          const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+          // Simular estilos de color para celdas de TE Normal
+          // Row 4 (rowEmp1), Martes T1 (col 11): 5.5 hrs TE normal con color
+          ws[XLSX.utils.encode_cell({ r: 4, c: 11 })].s = {
+            patternType: 'solid',
+            fgColor: { rgb: 'AEABAB' },
+          };
+          // Row 5 (rowEmp2), Lunes T1 (col 8): 4.0 hrs TE normal con color
+          ws[XLSX.utils.encode_cell({ r: 5, c: 8 })].s = {
+            patternType: 'solid',
+            fgColor: { rgb: 'AEABAB' },
+          };
+          // Row 5 (rowEmp2), Lunes T2 (col 9): 4.0 hrs TE normal con color
+          ws[XLSX.utils.encode_cell({ r: 5, c: 9 })].s = {
+            patternType: 'solid',
+            fgColor: { rgb: 'AEABAB' },
+          };
+          // Row 5 (rowEmp2), Martes T1 (col 11): 5.0 hrs TE normal con color
+          ws[XLSX.utils.encode_cell({ r: 5, c: 11 })].s = {
+            patternType: 'solid',
+            fgColor: { rgb: 'AEABAB' },
+          };
+
+          // Simular Autofiltro en Excel donde la fila 5 (Empleado 2) fue oculta por filtro
+          ws['!rows'] = [
+            {},
+            {},
+            {},
+            {},
+            {},
+            { hidden: true, hpt: 0 }, // Fila 5 oculta visualmente
+          ];
+
+          XLSX.utils.book_append_sheet(wb, ws, '02-08 S45');
+
+          // Base TE con departamento canónico oficial: GENERADOR VAPOR(CALDE
+          const baseTeRecords = [
+            { employeeId: '70006', department: 'GENERADOR VAPOR(CALDE', leader: 'Ing. Roberto Saldaña' },
+            { employeeId: '70016', department: 'GENERADOR VAPOR(CALDE', leader: 'Ing. Roberto Saldaña' },
+          ];
+
+          const result = parseWeeklyMatrixWorkbook(wb, undefined, baseTeRecords);
+
+          // 1. Debe haber leído AMBAS filas activas a pesar de que rowEmp2 tenía hidden: true
+          expect(result.stats.activeEmployees).toBe(2);
+          expect(result.records).toHaveLength(2);
+
+          // 2. Verificar Empleado 1: 70006 - OCHOA TEGOMEX JUAN MANUEL
+          const emp1 = result.records.find((r) => r.employeeId === '70006')!;
+          expect(emp1).toBeDefined();
+          expect(emp1.employeeName).toBe('OCHOA TEGOMEX JUAN MANUEL');
+          // Debe haberse unificado con el nombre canónico de Base TE
+          expect(emp1.department).toBe('GENERADOR VAPOR(CALDE');
+          expect(emp1.weekNumber).toBe(45);
+          expect(emp1.horasTotales).toBe(7.0);
+          expect(emp1.horasProlongacion).toBe(1.5); // 0.5 (T1) + 1.0 (T3)
+          expect(emp1.horasNormales).toBe(5.5); // 5.5 (T1 con color)
+          expect(emp1.expectedTotalColAD).toBe(7.0);
+          expect(emp1.isConsistentWithColAD).toBe(true);
+
+          // 3. Verificar Empleado 2: 70016 - SANCHEZ FERNANDEZ ARTURO
+          const emp2 = result.records.find((r) => r.employeeId === '70016')!;
+          expect(emp2).toBeDefined();
+          expect(emp2.employeeName).toBe('SANCHEZ FERNANDEZ ARTURO');
+          expect(emp2.department).toBe('GENERADOR VAPOR(CALDE');
+          expect(emp2.weekNumber).toBe(45);
+          expect(emp2.horasTotales).toBe(13.0);
+          expect(emp2.horasNormales).toBe(13.0);
+          expect(emp2.expectedTotalColAD).toBe(13.0);
+          expect(emp2.isConsistentWithColAD).toBe(true);
+
+          // 4. Verificar que enrichMatrixWithLeaders conserve el departamento canónico
+          const enriched = enrichMatrixWithLeaders(result.records, baseTeRecords);
+          expect(enriched[0].department).toBe('GENERADOR VAPOR(CALDE');
+          expect(enriched[1].department).toBe('GENERADOR VAPOR(CALDE');
+        });
       });
     });
   });

@@ -30,7 +30,7 @@ import {
 } from '../../types';
 import { determineSyndicatedStatus } from '../../services/businessRules';
 import { exportToExcel } from '../../services/excelParser';
-import { isRecordInLeaderScope } from '../../services/kpiEngine';
+import { isRecordInLeaderScope, normalizeDeptKey } from '../../services/kpiEngine';
 
 interface AbsenceConcentratedViewProps {
   records: AbsenceRecord[];
@@ -185,7 +185,11 @@ export const AbsenceConcentratedView: React.FC<AbsenceConcentratedViewProps> = (
 
       // Department filter
       if (filters.departments.length > 0 && !filters.departments.includes('ALL')) {
-        if (!filters.departments.includes(rec.department)) {
+        const recDeptNorm = normalizeDeptKey(rec.department);
+        const matches = filters.departments.some(
+          (d) => d === rec.department || (recDeptNorm && normalizeDeptKey(d) === recDeptNorm)
+        );
+        if (!matches) {
           return false;
         }
       }

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { FilteredKPIs, isRecordInLeaderScope } from '../../services/kpiEngine';
+import { FilteredKPIs, isRecordInLeaderScope, normalizeDeptKey } from '../../services/kpiEngine';
 import {
   AnnualOvertimeRecord,
   AttendanceRecord,
@@ -107,7 +107,11 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
 
       // Departamento
       if (filters.departments.length > 0 && !filters.departments.includes('ALL')) {
-        if (!filters.departments.includes(rec.department)) return false;
+        const recDeptNorm = normalizeDeptKey(rec.department);
+        const matchesDept = filters.departments.some(
+          (d) => d === rec.department || (recDeptNorm && normalizeDeptKey(d) === recDeptNorm)
+        );
+        if (!matchesDept) return false;
       }
 
       // Líder

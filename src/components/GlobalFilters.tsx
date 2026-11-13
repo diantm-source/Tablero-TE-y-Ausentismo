@@ -37,12 +37,16 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
 }) => {
   return (
     <div
-      className={`bg-slate-900/95 border-r border-slate-800 transition-all duration-300 flex flex-col shrink-0 text-slate-200 z-10 h-full ${
-        isCollapsed ? 'w-10' : 'w-72'
+      className={`bg-slate-900/95 transition-all duration-300 flex flex-col shrink-0 text-slate-200 z-10 overflow-hidden ${
+        hideCollapseButton
+          ? 'w-full h-full'
+          : isCollapsed
+          ? 'w-12 mt-0.5 mb-2.5 ml-2 mr-2 rounded-3xl border border-slate-800 shadow-sm'
+          : 'w-72 mt-0.5 mb-2.5 ml-2 mr-2 rounded-3xl border border-slate-800 shadow-sm'
       }`}
     >
       {/* Header bar of Filters */}
-      <div className="p-3 border-b border-slate-800 flex items-center justify-between">
+      <div className="p-3.5 border-b border-slate-800 flex items-center justify-between">
         {!isCollapsed && (
           <div className="flex items-center gap-2">
             <i className="bi bi-funnel-fill text-blue-400 text-sm"></i>
@@ -55,7 +59,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
           <button
             onClick={onToggleCollapsed}
             title={isCollapsed ? 'Expandir panel de filtros' : 'Ocultar panel de filtros'}
-            className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 mx-auto cursor-pointer"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 mx-auto cursor-pointer transition-colors"
           >
             <i
               className={`bi ${
@@ -71,22 +75,22 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
           <button
             onClick={onToggleCollapsed}
             title="Abrir filtros"
-            className="p-2 hover:bg-slate-800 hover:text-white rounded"
+            className="p-2 hover:bg-slate-800 hover:text-white rounded-xl transition-colors cursor-pointer"
           >
             <i className="bi bi-funnel text-base"></i>
           </button>
           <button
             onClick={onResetFilters}
             title="Restablecer filtros"
-            className="p-2 hover:bg-slate-800 hover:text-amber-400 rounded"
+            className="p-2 hover:bg-slate-800 hover:text-amber-400 rounded-xl transition-colors cursor-pointer"
           >
             <i className="bi bi-arrow-counterclockwise text-base"></i>
           </button>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto p-3 space-y-4 text-xs">
+        <div className="flex-1 overflow-y-auto p-3.5 space-y-4 text-xs">
           {filteredCounts && totalRecordsCount && (
-            <div className="bg-slate-800/90 border border-slate-700/80 rounded-lg p-2.5 text-[11px] space-y-1 shadow-sm">
+            <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-2.5 text-[11px] space-y-1 shadow-sm">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="flex items-center gap-1">
                   <i className="bi bi-funnel-fill text-blue-400"></i>
@@ -132,7 +136,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                     companies: ['ALL'],
                   })
                 }
-                className={`text-left px-2 py-1.5 rounded transition-colors flex items-center justify-between ${
+                className={`text-left px-2 py-1.5 rounded-xl transition-colors flex items-center justify-between ${
                   filters.companyPreset === 'ALL'
                     ? 'bg-blue-600 text-white font-medium'
                     : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300'
@@ -153,7 +157,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                     companies: ['POLAQUIMIA', 'MLBM', 'BARTELEU'],
                   })
                 }
-                className={`text-left px-2 py-1.5 rounded transition-colors flex items-center justify-between ${
+                className={`text-left px-2 py-1.5 rounded-xl transition-colors flex items-center justify-between ${
                   filters.companyPreset === 'MAIN_THREE'
                     ? 'bg-blue-600 text-white font-medium'
                     : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300'
@@ -171,7 +175,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                     companies: ['POLAQUIMIA'],
                   })
                 }
-                className={`text-left px-2 py-1.5 rounded transition-colors flex items-center justify-between ${
+                className={`text-left px-2 py-1.5 rounded-xl transition-colors flex items-center justify-between ${
                   filters.companyPreset === 'POLAQUIMIA_ONLY'
                     ? 'bg-blue-600 text-white font-medium'
                     : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300'
@@ -191,7 +195,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
             <div className="grid grid-cols-3 gap-1">
               <button
                 onClick={() => onChangeFilters({ collaboratorType: 'ALL' })}
-                className={`py-1 px-1.5 rounded text-center truncate ${
+                className={`py-1 px-1.5 rounded-xl text-center truncate ${
                   filters.collaboratorType === 'ALL'
                     ? 'bg-blue-600 text-white font-bold'
                     : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
@@ -201,7 +205,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
               </button>
               <button
                 onClick={() => onChangeFilters({ collaboratorType: 'SINDICALIZADO' })}
-                className={`py-1 px-1.5 rounded text-center truncate ${
+                className={`py-1 px-1.5 rounded-xl text-center truncate ${
                   filters.collaboratorType === 'SINDICALIZADO'
                     ? 'bg-blue-600 text-white font-bold'
                     : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
@@ -211,7 +215,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
               </button>
               <button
                 onClick={() => onChangeFilters({ collaboratorType: 'NO_SINDICALIZADO' })}
-                className={`py-1 px-1.5 rounded text-center truncate ${
+                className={`py-1 px-1.5 rounded-xl text-center truncate ${
                   filters.collaboratorType === 'NO_SINDICALIZADO'
                     ? 'bg-blue-600 text-white font-bold'
                     : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
@@ -229,13 +233,13 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                 Búsqueda Rápida
               </label>
               <div className="relative">
-                <i className="bi bi-search absolute left-2.5 top-2 text-slate-400 text-xs"></i>
+                <i className="bi bi-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
                 <input
                   type="text"
                   value={filters.searchTerm}
                   onChange={(e) => onChangeFilters({ searchTerm: e.target.value })}
                   placeholder="Nombre, ID, Motivo..."
-                  className="w-full pl-7 pr-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                  className="w-full pl-8 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-xs text-xs"
                 />
               </div>
             </div>
@@ -279,7 +283,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                     });
                   }
                 }}
-                className="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-blue-500 shadow-xs text-xs cursor-pointer"
               >
                 <option value="ALL">Todas las empresas ({availableCompanies.length})</option>
                 <option value="MAIN_THREE">Solo Polaquimia, MLBM y Barteleu</option>
@@ -312,7 +316,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                     });
                   }
                 }}
-                className="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-blue-500 shadow-xs text-xs cursor-pointer"
               >
                 <option value="ALL">Todos los líderes ({availableLeaders.length})</option>
                 {availableLeaders.map((l) => (
@@ -336,7 +340,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
               <select
                 value={filters.departments[0] || 'ALL'}
                 onChange={(e) => onChangeFilters({ departments: [e.target.value] })}
-                className="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-blue-500 shadow-xs text-xs cursor-pointer"
               >
                 <option value="ALL">
                   {filters.leaders.length > 0 && !filters.leaders.includes('ALL')
@@ -362,7 +366,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
               <select
                 value={filters.isoWeek}
                 onChange={(e) => onChangeFilters({ isoWeek: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-blue-500 shadow-xs text-xs cursor-pointer"
               >
                 <option value="ALL">Todas las semanas ({availableWeeks.length})</option>
                 {availableWeeks.map((w) => {
@@ -384,7 +388,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
               <select
                 value={filters.month}
                 onChange={(e) => onChangeFilters({ month: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-blue-500 shadow-xs text-xs cursor-pointer"
               >
                 <option value="ALL">Todos los meses ({availableMonths.length})</option>
                 {availableMonths.map((m) => (
@@ -407,7 +411,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                     type="date"
                     value={filters.startDate}
                     onChange={(e) => onChangeFilters({ startDate: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-slate-100 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2 py-1.5 text-[11px] text-slate-100 focus:outline-none focus:border-blue-500 shadow-xs"
                   />
                 </div>
                 <div>
@@ -416,7 +420,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                     type="date"
                     value={filters.endDate}
                     onChange={(e) => onChangeFilters({ endDate: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-slate-100 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2 py-1.5 text-[11px] text-slate-100 focus:outline-none focus:border-blue-500 shadow-xs"
                   />
                 </div>
               </div>
@@ -434,7 +438,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                     overtimeStatus: e.target.value as GlobalFilterState['overtimeStatus'],
                   })
                 }
-                className="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-blue-500 shadow-xs text-xs cursor-pointer"
               >
                 <option value="ALL">Todos los estados</option>
                 <option value="APROBADO">Solamente Aprobado</option>
@@ -448,7 +452,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
           <div className="pt-2">
             <button
               onClick={onResetFilters}
-              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded border border-slate-700 flex items-center justify-center gap-1.5 font-medium transition-colors"
+              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 font-medium transition-colors cursor-pointer hover:text-amber-400"
             >
               <i className="bi bi-arrow-counterclockwise text-amber-400"></i>
               <span>Restablecer Filtros</span>

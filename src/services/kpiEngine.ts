@@ -5,6 +5,9 @@ import {
   ThresholdConfig,
 } from '../types';
 import { determineSyndicatedStatus, getISOWeekDateRange } from './businessRules';
+import { normalizeDeptKey } from './overtimeParser';
+
+export { normalizeDeptKey };
 
 export interface DepartmentMetric {
   department: string;
@@ -109,6 +112,7 @@ export function extractBaseTeLeaderCatalog(
   const deptToLeaderMap = new Map<string, Set<string>>();
   const allDepts = new Set<string>();
   const allLeaders = new Set<string>();
+  const normDeptToCanonical = new Map<string, string>();
 
   if (!records || !Array.isArray(records)) {
     return {
@@ -125,12 +129,18 @@ export function extractBaseTeLeaderCatalog(
 
     if (!rawDept && !rawLeader) continue;
 
-    const normDept = rawDept;
-    const normLeader = rawLeader;
-
-    if (normDept) {
+    // Normalización inteligente: unificar variantes de departamento preservando el nombre canónico de Base TE
+    let normDept = rawDept;
+    if (rawDept) {
+      const deptKey = normalizeDeptKey(rawDept);
+      if (!normDeptToCanonical.has(deptKey)) {
+        normDeptToCanonical.set(deptKey, rawDept);
+      }
+      normDept = normDeptToCanonical.get(deptKey)!;
       allDepts.add(normDept);
     }
+
+    const normLeader = rawLeader;
 
     if (
       normLeader &&
@@ -174,6 +184,8 @@ export function isRecordInLeaderScope(
   if (!selectedLeaders || selectedLeaders.length === 0 || selectedLeaders.includes('ALL')) {
     return true;
   }
+  const recDeptNorm = rec.department ? normalizeDeptKey(rec.department) : '';
+
   for (const leader of selectedLeaders) {
     if (leader === 'ALL') return true;
     if (rec.leader && rec.leader.trim().toLowerCase() === leader.trim().toLowerCase()) {
@@ -181,8 +193,17 @@ export function isRecordInLeaderScope(
     }
     if (leaderToDeptMap && rec.department) {
       const depts = leaderToDeptMap.get(leader);
-      if (depts && depts.has(rec.department.trim())) {
-        return true;
+      if (depts) {
+        if (depts.has(rec.department.trim())) {
+          return true;
+        }
+        if (recDeptNorm) {
+          for (const d of depts) {
+            if (normalizeDeptKey(d) === recDeptNorm) {
+              return true;
+            }
+          }
+        }
       }
     }
   }
@@ -246,7 +267,13 @@ export function applyFilters(
     if (!passesOvertimeCompany(rec.company)) return false;
 
     if (filters.departments.length > 0 && !filters.departments.includes('ALL')) {
-      if (!filters.departments.includes(rec.department)) return false;
+      const recDeptNorm = normalizeDeptKey(rec.department);
+      const matchesDept = filters.departments.some(
+        (filterDept) =>
+          filterDept === rec.department ||
+          (recDeptNorm && normalizeDeptKey(filterDept) === recDeptNorm)
+      );
+      if (!matchesDept) return false;
     }
 
     if (filters.leaders.length > 0 && !filters.leaders.includes('ALL')) {
@@ -294,7 +321,13 @@ export function applyFilters(
     if (!passesAttendanceCompany(rec.company)) return false;
 
     if (filters.departments.length > 0 && !filters.departments.includes('ALL')) {
-      if (!filters.departments.includes(rec.department)) return false;
+      const recDeptNorm = normalizeDeptKey(rec.department);
+      const matchesDept = filters.departments.some(
+        (filterDept) =>
+          filterDept === rec.department ||
+          (recDeptNorm && normalizeDeptKey(filterDept) === recDeptNorm)
+      );
+      if (!matchesDept) return false;
     }
 
     if (filters.leaders.length > 0 && !filters.leaders.includes('ALL')) {
@@ -418,7 +451,17 @@ export function computeKPIs(
     }
 
     // Dept map
-    const curDept = deptHoursMap.get(rec.department) || {
+    let targetDeptKey = rec.department;
+    const recDeptNorm = normalizeDeptKey(rec.department);
+    if (!deptHoursMap.has(targetDeptKey) && recDeptNorm) {
+      for (const existingKey of deptHoursMap.keys()) {
+        if (normalizeDeptKey(existingKey) === recDeptNorm) {
+          targetDeptKey = existingKey;
+          break;
+        }
+      }
+    }
+    const curDept = deptHoursMap.get(targetDeptKey) || {
       requested: 0,
       approved: 0,
       pending: 0,
@@ -430,7 +473,7 @@ export function computeKPIs(
     curDept.approved += rec.approvedHours;
     curDept.pending += rec.status === 'PENDIENTE' ? rec.requestedHours : 0;
     curDept.count++;
-    deptHoursMap.set(rec.department, curDept);
+    deptHoursMap.set(targetDeptKey, curDept);
 
     // Daily metric
     const day = dailyMetricsMap.get(rec.dateOnly) || {
@@ -490,7 +533,17 @@ export function computeKPIs(
         nonSynEligibleShifts++;
       }
 
-      const dAtt = deptAttendanceMap.get(rec.department) || {
+      let targetAttDeptKey = rec.department;
+      const attDeptNorm = normalizeDeptKey(rec.department);
+      if (!deptAttendanceMap.has(targetAttDeptKey) && attDeptNorm) {
+        for (const existingKey of deptAttendanceMap.keys()) {
+          if (normalizeDeptKey(existingKey) === attDeptNorm) {
+            targetAttDeptKey = existingKey;
+            break;
+          }
+        }
+      }
+      const dAtt = deptAttendanceMap.get(targetAttDeptKey) || {
         eligible: 0,
         absences: 0,
         company: rec.company,

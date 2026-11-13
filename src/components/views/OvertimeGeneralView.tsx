@@ -18,7 +18,7 @@ import {
 } from '../../types';
 import { determineSyndicatedStatus } from '../../services/businessRules';
 import { exportToExcel } from '../../services/excelParser';
-import { getTurnoBadgeClass, enrichMatrixWithLeaders } from '../../services/overtimeParser';
+import { getTurnoBadgeClass, enrichMatrixWithLeaders, normalizeDeptKey } from '../../services/overtimeParser';
 import { isRecordInLeaderScope } from '../../services/kpiEngine';
 
 interface OvertimeGeneralViewProps {
@@ -191,7 +191,11 @@ export const OvertimeGeneralView: React.FC<OvertimeGeneralViewProps> = ({
 
       // Department filter
       if (filters.departments.length > 0 && !filters.departments.includes('ALL')) {
-        if (!filters.departments.includes(rec.department)) {
+        const recDeptNorm = normalizeDeptKey(rec.department);
+        const matchesDept = filters.departments.some(
+          (d) => d === rec.department || (recDeptNorm && normalizeDeptKey(d) === recDeptNorm)
+        );
+        if (!matchesDept) {
           return false;
         }
       }

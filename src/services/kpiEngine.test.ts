@@ -478,4 +478,59 @@ describe('kpiEngine Company Presets & Filtering', () => {
     expect(filteredOvertime.length).toBeGreaterThan(0);
     expect(filteredAttendance.every((r) => r.department === 'Produccion' || r.leader === 'Carlos Lopez')).toBe(true);
   });
+
+  it('filters records by department matching variations like GENERADOR VAPOR(CALDE vs GENERADORVAPOR(CALDE', () => {
+    const otRecords: OvertimeRecord[] = [
+      {
+        ...mockOvertime[0],
+        id: 'ot_gen_1',
+        employeeId: '70006',
+        employeeName: 'OCHOA TEGOMEX JUAN MANUEL',
+        department: 'GENERADORVAPOR(CALDE',
+        requestedHours: 7,
+        approvedHours: 7,
+        status: 'APROBADO',
+        isoYear: 2026,
+        isoWeek: 45,
+        dateOnly: '2026-11-03',
+      },
+      {
+        ...mockOvertime[0],
+        id: 'ot_gen_2',
+        employeeId: '70016',
+        employeeName: 'SANCHEZ FERNANDEZ ARTURO',
+        department: 'GENERADOR VAPOR(CALDE',
+        requestedHours: 13,
+        approvedHours: 13,
+        status: 'APROBADO',
+        isoYear: 2026,
+        isoWeek: 45,
+        dateOnly: '2026-11-04',
+      },
+      {
+        ...mockOvertime[0],
+        id: 'ot_other',
+        employeeId: '99999',
+        department: 'CALIDAD',
+      },
+    ];
+
+    const filter: GlobalFilterState = {
+      ...defaultFilters,
+      departments: ['GENERADOR VAPOR(CALDE'],
+      isoWeek: '2026-W45',
+    };
+
+    const { filteredOvertime } = applyFilters(otRecords, [], filter);
+
+    // Ambos registros (con y sin espacio) deben coincidir y mostrarse
+    expect(filteredOvertime).toHaveLength(2);
+    expect(filteredOvertime.some((r) => r.employeeId === '70006')).toBe(true);
+    expect(filteredOvertime.some((r) => r.employeeId === '70016')).toBe(true);
+
+    const emp1 = filteredOvertime.find((r) => r.employeeId === '70006')!;
+    const emp2 = filteredOvertime.find((r) => r.employeeId === '70016')!;
+    expect(emp1.approvedHours).toBe(7);
+    expect(emp2.approvedHours).toBe(13);
+  });
 });

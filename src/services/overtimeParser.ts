@@ -241,6 +241,23 @@ export function evaluateTrafficLight(totalHoras: number): TrafficLightStatus {
 }
 
 /**
+ * Normalización Inteligente de Nombres de Departamento:
+ * Convierte a mayúsculas, elimina acentos, colapsa/elimina espacios internos
+ * y paréntesis abiertos/cerrados para comparación unificada de claves,
+ * conservando el nombre oficial limpio de Base TE en la interfaz y filtros.
+ */
+export function normalizeDeptKey(raw: unknown): string {
+  if (raw === null || raw === undefined) return '';
+  return String(raw)
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '')
+    .replace(/[\(\)\[\]\{\}]/g, '')
+    .trim();
+}
+
+/**
  * Normalize text for resilient header matching
  */
 function normalizeHeaderKey(str: string): string {
@@ -951,21 +968,49 @@ export function parseWeeklyMatrixWorkbook(
   const weeklyRecords: WeeklyMatrixRecord[] = [];
   const dailyOvertimeRecords: OvertimeRecord[] = [];
 
-  // Diccionario/Mapa para enriquecimiento y cruce de Líder de Área desde Base TE
+  // Diccionario/Mapa para enriquecimiento y cruce de Líder de Área y Departamento Canónico desde Base TE
   const idToLeaderMap = new Map<string, string>();
   const deptToLeaderMap = new Map<string, string>();
+  const normDeptToCanonicalMap = new Map<string, string>();
+  const idToDeptMap = new Map<string, string>();
+
+  // Departamentos canónicos conocidos por defecto de Base TE
+  const KNOWN_CANONICAL_DEPTS: Record<string, string> = {
+    [normalizeDeptKey('GENERADOR VAPOR(CALDE')]: 'GENERADOR VAPOR(CALDE',
+    [normalizeDeptKey('MANTENIMIENTO TLAX PQ')]: 'MANTENIMIENTO TLAX PQ',
+  };
+  for (const [key, val] of Object.entries(KNOWN_CANONICAL_DEPTS)) {
+    normDeptToCanonicalMap.set(key, val);
+  }
 
   if (baseTeRecords && Array.isArray(baseTeRecords)) {
     for (const b of baseTeRecords) {
+      const canonicalDept = ((b as any).department || (b as any).Departamento || '').trim();
+      const id = ((b as any).employeeId || (b as any).ID || '').trim();
+
+      if (canonicalDept) {
+        const normKey = normalizeDeptKey(canonicalDept);
+        if (normKey && !normDeptToCanonicalMap.has(normKey)) {
+          normDeptToCanonicalMap.set(normKey, canonicalDept);
+        }
+        if (id && !idToDeptMap.has(id)) {
+          idToDeptMap.set(id, canonicalDept);
+        }
+      }
+
       const l = ((b as any).leader || (b as any)['Líder de área'] || '').trim();
       if (l && l !== 'Sin Líder') {
-        const id = ((b as any).employeeId || (b as any).ID || '').trim();
         if (id && !idToLeaderMap.has(id)) {
           idToLeaderMap.set(id, l);
         }
-        const dept = ((b as any).department || (b as any).Departamento || '').trim();
-        if (dept && !deptToLeaderMap.has(dept)) {
-          deptToLeaderMap.set(dept, l);
+        if (canonicalDept) {
+          const normKey = normalizeDeptKey(canonicalDept);
+          if (normKey && !deptToLeaderMap.has(normKey)) {
+            deptToLeaderMap.set(normKey, l);
+          }
+          if (!deptToLeaderMap.has(canonicalDept)) {
+            deptToLeaderMap.set(canonicalDept, l);
+          }
         }
       }
     }
@@ -1035,10 +1080,27 @@ export function parseWeeklyMatrixWorkbook(
     const [pYear, pMonth, pDay] = period.startDate.split('-').map(Number);
     const mondayDate = new Date(pYear, pMonth - 1, pDay);
 
+    // Determinar la última fila real con datos en la hoja para no omitir celdas por rangos truncados
+    let maxRow = range.e.r;
+    for (const cellAddress of Object.keys(ws)) {
+      if (cellAddress.startsWith('!')) continue;
+      const decoded = XLSX.utils.decode_cell(cellAddress);
+      if (decoded.r > maxRow) {
+        maxRow = decoded.r;
+      }
+    }
+
     // 2. Filtrado de Colaboradores Activos: Columna B (Activo) === 1
-    for (let r = dataStartRow; r <= range.e.r; r++) {
+    // Importante: Se ignoran filtros visuales de Excel (ws['!rows'] hidden / autofilter)
+    // para leer TODAS las filas donde Columna B === 1 sin omitir filas filtradas.
+    for (let r = dataStartRow; r <= maxRow; r++) {
       const cellActivo = ws[XLSX.utils.encode_cell({ r, c: 1 })]?.v;
-      if (cellActivo !== 1 && cellActivo !== '1') {
+      const isActivo =
+        cellActivo === 1 ||
+        cellActivo === '1' ||
+        String(cellActivo ?? '').trim() === '1';
+
+      if (!isActivo) {
         continue;
       }
 
@@ -1052,12 +1114,17 @@ export function parseWeeklyMatrixWorkbook(
       const employeeId = String(rawColC || '').trim();
       const employeeName = colD || 'Sin Nombre';
       const sapId = String(rawColE || employeeId).trim();
-      const department = colA || 'Sin Departamento';
+
+      // Mapeo inteligente hacia el departamento canónico oficial de Base TE
+      const normColA = normalizeDeptKey(colA);
+      const canonicalFromDept = normColA ? normDeptToCanonicalMap.get(normColA) : undefined;
+      const canonicalFromId = employeeId ? idToDeptMap.get(employeeId) : undefined;
+      const department = canonicalFromDept || canonicalFromId || colA || 'Sin Departamento';
 
       // Cruce de Líder de Área con Base TE (ID -> Líder de área y como respaldo Departamento -> Líder de área)
       let resolvedLeader = idToLeaderMap.get(employeeId);
       if (!resolvedLeader || resolvedLeader === 'Sin Líder') {
-        resolvedLeader = deptToLeaderMap.get(department);
+        resolvedLeader = deptToLeaderMap.get(normalizeDeptKey(department)) || deptToLeaderMap.get(department);
       }
       if (!resolvedLeader) {
         resolvedLeader = department || 'Sin Líder Asignado';
@@ -1093,10 +1160,29 @@ export function parseWeeklyMatrixWorkbook(
           const cell = ws[XLSX.utils.encode_cell({ r, c: colIdx })];
           if (!cell || cell.v === undefined || cell.v === null) continue;
 
-          // Ignorar celdas con texto ('d', 'vacaciones', 'sindicato', 'cambio rol', etc.)
+          // Parseo seguro de decimales con coma regional y limpieza de textos administrativos
           const rawVal = cell.v;
-          const numVal = typeof rawVal === 'number' ? rawVal : parseFloat(String(rawVal));
-          if (isNaN(numVal) || numVal <= 0) continue;
+          let numVal: number;
+
+          if (typeof rawVal === 'number') {
+            if (isNaN(rawVal) || rawVal <= 0) continue;
+            numVal = rawVal;
+          } else {
+            const rawStr = String(rawVal).trim();
+            if (!rawStr) continue;
+
+            // Convertir coma decimal regional a punto (ej. "0,5" -> "0.5")
+            const normalizedNumStr = rawStr.replace(',', '.');
+
+            // Ignorar textos administrativos (vacaciones, sindicato, d, pagado, db7pg2, pg2, pg1, etc.)
+            // Aceptando exclusivamente valores numéricos puros (enteros o decimales)
+            if (!/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(normalizedNumStr)) {
+              continue;
+            }
+
+            numVal = parseFloat(normalizedNumStr);
+            if (isNaN(numVal) || numVal <= 0) continue;
+          }
 
           const shiftNumber = (shiftIdx + 1) as 1 | 2 | 3; // 1: 38 (1er Turno), 2: 39 (2do Turno), 3: 40 (3er Turno)
           shiftsActive.add(shiftNumber);
@@ -1219,8 +1305,17 @@ export function parseWeeklyMatrixWorkbook(
       let isConsistentWithColAD = true;
 
       if (rawColAD !== undefined && rawColAD !== null && rawColAD !== '') {
-        const parsedAD = typeof rawColAD === 'number' ? rawColAD : parseFloat(String(rawColAD));
-        if (!isNaN(parsedAD)) {
+        let parsedAD: number | undefined;
+        if (typeof rawColAD === 'number') {
+          parsedAD = isNaN(rawColAD) ? undefined : rawColAD;
+        } else {
+          const strAD = String(rawColAD).trim().replace(',', '.');
+          if (/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(strAD)) {
+            const num = parseFloat(strAD);
+            if (!isNaN(num)) parsedAD = num;
+          }
+        }
+        if (parsedAD !== undefined) {
           expectedTotalColAD = parsedAD;
           if (Math.abs(horasTotales - parsedAD) > 0.01) {
             isConsistentWithColAD = false;
@@ -1315,18 +1410,45 @@ export function enrichMatrixWithLeaders<
 ): (T & { leader: string; liderArea: string })[] {
   const idToLeaderMap = new Map<string, string>();
   const deptToLeaderMap = new Map<string, string>();
+  const normDeptToCanonicalMap = new Map<string, string>();
+  const idToDeptMap = new Map<string, string>();
+
+  const KNOWN_CANONICAL_DEPTS: Record<string, string> = {
+    [normalizeDeptKey('GENERADOR VAPOR(CALDE')]: 'GENERADOR VAPOR(CALDE',
+    [normalizeDeptKey('MANTENIMIENTO TLAX PQ')]: 'MANTENIMIENTO TLAX PQ',
+  };
+  for (const [key, val] of Object.entries(KNOWN_CANONICAL_DEPTS)) {
+    normDeptToCanonicalMap.set(key, val);
+  }
 
   if (baseTeRecords && Array.isArray(baseTeRecords)) {
     for (const b of baseTeRecords) {
+      const canonicalDept = ((b as any).department || (b as any).Departamento || '').trim();
+      const id = ((b as any).employeeId || (b as any).ID || '').trim();
+
+      if (canonicalDept) {
+        const normKey = normalizeDeptKey(canonicalDept);
+        if (normKey && !normDeptToCanonicalMap.has(normKey)) {
+          normDeptToCanonicalMap.set(normKey, canonicalDept);
+        }
+        if (id && !idToDeptMap.has(id)) {
+          idToDeptMap.set(id, canonicalDept);
+        }
+      }
+
       const l = ((b as any).leader || (b as any)['Líder de área'] || '').trim();
       if (l && l !== 'Sin Líder') {
-        const id = ((b as any).employeeId || (b as any).ID || '').trim();
         if (id && !idToLeaderMap.has(id)) {
           idToLeaderMap.set(id, l);
         }
-        const dept = ((b as any).department || (b as any).Departamento || '').trim();
-        if (dept && !deptToLeaderMap.has(dept)) {
-          deptToLeaderMap.set(dept, l);
+        if (canonicalDept) {
+          const normKey = normalizeDeptKey(canonicalDept);
+          if (normKey && !deptToLeaderMap.has(normKey)) {
+            deptToLeaderMap.set(normKey, l);
+          }
+          if (!deptToLeaderMap.has(canonicalDept)) {
+            deptToLeaderMap.set(canonicalDept, l);
+          }
         }
       }
     }
@@ -1334,15 +1456,24 @@ export function enrichMatrixWithLeaders<
 
   return matrixRecords.map((rec) => {
     const empId = (rec.employeeId || '').trim();
-    const dept = (rec.department || '').trim();
+    const rawDept = (rec.department || '').trim();
+    const normDept = normalizeDeptKey(rawDept);
+    const resolvedDept =
+      normDeptToCanonicalMap.get(normDept) ||
+      idToDeptMap.get(empId) ||
+      rawDept ||
+      'Sin Departamento';
+
     const resolvedLeader =
       idToLeaderMap.get(empId) ||
-      deptToLeaderMap.get(dept) ||
-      (rec.leader && rec.leader !== dept ? rec.leader : dept) ||
+      deptToLeaderMap.get(normDept) ||
+      deptToLeaderMap.get(rawDept) ||
+      (rec.leader && rec.leader !== rawDept ? rec.leader : resolvedDept) ||
       'Sin Líder Asignado';
 
     return {
       ...rec,
+      department: resolvedDept,
       leader: resolvedLeader,
       liderArea: resolvedLeader,
     };
