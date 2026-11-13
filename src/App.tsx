@@ -10,7 +10,7 @@ import {
   WeeklyMatrixRecord,
 } from './types';
 import { AppStorage, DEFAULT_THRESHOLDS } from './services/storage';
-import { computeKPIs } from './services/kpiEngine';
+import { computeKPIs, extractBaseTeLeaderCatalog } from './services/kpiEngine';
 import { enrichMatrixWithLeaders } from './services/overtimeParser';
 import { syncRemoteAbsences, syncRemoteAll, syncRemoteMatriz } from './services/cloudSync';
 import { Header } from './components/Header';
@@ -43,6 +43,8 @@ export default function App() {
   const [currentSection, setCurrentSection] = useState<NavigationSection>('executive');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   // Core Data State
   const [overtimeRecords, setOvertimeRecords] = useState<import('./types').OvertimeRecord[]>([]);
@@ -178,26 +180,33 @@ export default function App() {
     return Array.from(set);
   }, [overtimeRecords, attendanceRecords]);
 
-  const availableDepartments = useMemo(() => {
-    const set = new Set<string>();
-    overtimeRecords.forEach((r) => r.department && set.add(r.department));
-    attendanceRecords.forEach((r) => r.department && set.add(r.department));
-    annualOvertimeRecords.forEach((r) => r.department && set.add(r.department));
-    weeklyMatrixRecords.forEach((r) => r.department && set.add(r.department));
-    absenceRecords.forEach((r) => r.department && set.add(r.department));
-    return Array.from(set).sort();
-  }, [overtimeRecords, attendanceRecords, annualOvertimeRecords, weeklyMatrixRecords, absenceRecords]);
+  // Extraer catálogo relacional Líder de Área <-> Departamentos exclusivamente desde Base TE
+  const baseTeCatalog = useMemo(() => {
+    const baseSource = annualOvertimeRecords.length > 0 ? annualOvertimeRecords : overtimeRecords;
+    return extractBaseTeLeaderCatalog(baseSource);
+  }, [annualOvertimeRecords, overtimeRecords]);
 
+  // Lista única y ordenada alfabéticamente de los valores reales de Líder de Área en Base TE
   const availableLeaders = useMemo(() => {
-    const set = new Set<string>();
-    overtimeRecords.forEach((r) => r.leader && set.add(r.leader));
-    attendanceRecords.forEach((r) => r.leader && set.add(r.leader));
-    annualOvertimeRecords.forEach((r) => r.leader && set.add(r.leader));
-    weeklyMatrixRecords.forEach((r) => r.leader && set.add(r.leader));
-    absenceRecords.forEach((r) => r.leader && set.add(r.leader));
-    departmentLeaders.forEach((l) => l.leaderName && set.add(l.leaderName));
-    return Array.from(set).sort();
-  }, [overtimeRecords, attendanceRecords, annualOvertimeRecords, weeklyMatrixRecords, absenceRecords, departmentLeaders]);
+    return baseTeCatalog.leadersList;
+  }, [baseTeCatalog]);
+
+  // Departamentos reales de Base TE (filtrados en cascada si hay un Líder seleccionado)
+  const availableDepartments = useMemo(() => {
+    if (filters.leaders.length > 0 && !filters.leaders.includes('ALL')) {
+      const depts = new Set<string>();
+      for (const l of filters.leaders) {
+        const assigned = baseTeCatalog.leaderToDepartments.get(l);
+        if (assigned) {
+          assigned.forEach((d) => depts.add(d));
+        }
+      }
+      if (depts.size > 0) {
+        return Array.from(depts).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+      }
+    }
+    return baseTeCatalog.departmentsList;
+  }, [baseTeCatalog, filters.leaders]);
 
   const availableWeeks = useMemo(() => {
     const set = new Set<string>();
@@ -249,10 +258,23 @@ export default function App() {
     return Array.from(set).sort().reverse();
   }, [overtimeRecords, attendanceRecords, annualOvertimeRecords, weeklyMatrixRecords, absenceRecords]);
 
-  // Compute KPIs with live filters & thresholds
+  // Compute KPIs with live filters, thresholds & leader-department relational scope
   const kpis = useMemo(() => {
-    return computeKPIs(overtimeRecords, attendanceRecords, filters, thresholds);
-  }, [overtimeRecords, attendanceRecords, filters, thresholds]);
+    return computeKPIs(overtimeRecords, attendanceRecords, filters, thresholds, baseTeCatalog.leaderToDepartments);
+  }, [overtimeRecords, attendanceRecords, filters, thresholds, baseTeCatalog.leaderToDepartments]);
+
+  // Número de filtros activos para badge en botón de móvil
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filters.leaders.length > 0 && !filters.leaders.includes('ALL')) count++;
+    if (filters.departments.length > 0 && !filters.departments.includes('ALL')) count++;
+    if (filters.isoWeek && filters.isoWeek !== 'ALL') count++;
+    if (filters.month && filters.month !== 'ALL') count++;
+    if (filters.startDate || filters.endDate || filters.specificDate) count++;
+    if (filters.overtimeStatus && filters.overtimeStatus !== 'ALL') count++;
+    if (filters.searchTerm && filters.searchTerm.trim()) count++;
+    return count;
+  }, [filters]);
 
   const handleFilterChange = (updated: Partial<GlobalFilterState>) => {
     setFilters((prev) => ({ ...prev, ...updated }));
@@ -312,7 +334,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col text-slate-800 antialiased font-sans">
+    <div className="h-screen flex flex-col overflow-hidden bg-slate-100 text-slate-800 antialiased font-sans">
       {/* Top Application Header */}
       <Header
         currentSection={currentSection}
@@ -330,46 +352,55 @@ export default function App() {
         onSyncCloud={handleSyncCloud}
         lastSyncTimestamp={lastSyncTimestamp}
         isSyncing={isSyncing}
+        onOpenMobileMenu={() => setMobileMenuOpen(true)}
+        onOpenMobileFilters={() => setMobileFiltersOpen(true)}
+        activeFiltersCount={activeFiltersCount}
+        showFiltersButton={currentSection !== 'import' && currentSection !== 'catalogs'}
       />
 
       {/* Main Container */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Navigation Sidebar */}
-        <Sidebar
-          currentSection={currentSection}
-          onNavigate={setCurrentSection}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-          pendingOtCount={kpis.pendingOtRequests}
-          auditIncidentsCount={auditIncidents.length}
-        />
-
-        {/* Global Filter Bar (Accessible in Analytical Views) */}
-        {currentSection !== 'import' && currentSection !== 'catalogs' && (
-          <GlobalFilters
-            filters={filters}
-            onChangeFilters={handleFilterChange}
-            onResetFilters={handleResetFilters}
-            availableCompanies={availableCompanies}
-            availableDepartments={availableDepartments}
-            availableLeaders={availableLeaders}
-            availableWeeks={availableWeeks}
-            availableMonths={availableMonths}
-            filteredCounts={{
-              ot: kpis.filteredOvertime.length,
-              att: kpis.filteredAttendance.length,
-            }}
-            totalRecordsCount={{
-              ot: overtimeRecords.length,
-              att: attendanceRecords.length,
-            }}
-            isCollapsed={filtersCollapsed}
-            onToggleCollapsed={() => setFiltersCollapsed(!filtersCollapsed)}
+      <div className="flex-1 flex min-h-0 overflow-hidden relative">
+        {/* Desktop Navigation Sidebar (Fijo y Estático) */}
+        <div className="hidden lg:flex shrink-0 h-full">
+          <Sidebar
+            currentSection={currentSection}
+            onNavigate={setCurrentSection}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+            pendingOtCount={kpis.pendingOtRequests}
+            auditIncidentsCount={auditIncidents.length}
           />
+        </div>
+
+        {/* Desktop Global Filter Bar (Fijo y Estático en vistas analíticas) */}
+        {currentSection !== 'import' && currentSection !== 'catalogs' && (
+          <div className="hidden lg:flex shrink-0 h-full">
+            <GlobalFilters
+              filters={filters}
+              onChangeFilters={handleFilterChange}
+              onResetFilters={handleResetFilters}
+              availableCompanies={availableCompanies}
+              availableDepartments={availableDepartments}
+              availableLeaders={availableLeaders}
+              availableWeeks={availableWeeks}
+              availableMonths={availableMonths}
+              filteredCounts={{
+                ot: kpis.filteredOvertime.length,
+                att: kpis.filteredAttendance.length,
+              }}
+              totalRecordsCount={{
+                ot: overtimeRecords.length,
+                att: attendanceRecords.length,
+              }}
+              isCollapsed={filtersCollapsed}
+              onToggleCollapsed={() => setFiltersCollapsed(!filtersCollapsed)}
+              leaderToDeptMap={baseTeCatalog.leaderToDepartments}
+            />
+          </div>
         )}
 
-        {/* Content Area */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 space-y-6">
+        {/* Content Area (Scroll independiente únicamente en tablas y gráficas) */}
+        <main className="flex-1 min-w-0 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 space-y-6">
           {currentSection === 'executive' && (
             <ExecutiveSummaryView
               kpis={kpis}
@@ -388,6 +419,7 @@ export default function App() {
               filters={filters}
               isSyncing={isSyncing}
               onSyncCloud={handleSyncCloud}
+              leaderToDeptMap={baseTeCatalog.leaderToDepartments}
             />
           )}
 
@@ -400,6 +432,7 @@ export default function App() {
               filters={filters}
               isSyncing={isSyncing}
               onSyncCloud={handleSyncCloud}
+              leaderToDeptMap={baseTeCatalog.leaderToDepartments}
             />
           )}
 
@@ -452,6 +485,121 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* Drawer Móvil: Menú Lateral (☰) */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          <div
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="relative w-72 max-w-[85vw] h-full bg-slate-900 z-10 shadow-2xl flex flex-col animate-in slide-in-from-left duration-250">
+            <div className="p-3.5 border-b border-slate-800 flex items-center justify-between text-white">
+              <div className="flex items-center gap-2">
+                <i className="bi bi-grid-fill text-blue-400"></i>
+                <span className="font-bold text-sm">Módulos del Sistema</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                aria-label="Cerrar menú móvil"
+              >
+                <i className="bi bi-x-lg text-base"></i>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <Sidebar
+                currentSection={currentSection}
+                onNavigate={(sec) => {
+                  setCurrentSection(sec);
+                  setMobileMenuOpen(false);
+                }}
+                collapsed={false}
+                onToggleCollapse={() => {}}
+                pendingOtCount={kpis.pendingOtRequests}
+                auditIncidentsCount={auditIncidents.length}
+                isMobileDrawer={true}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Drawer Móvil: Filtros Globales (🌪️) con botón "Aplicar / Cerrar" */}
+      {mobileFiltersOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex justify-end">
+          <div
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={() => setMobileFiltersOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="relative w-80 max-w-[90vw] h-full bg-slate-900 z-10 shadow-2xl flex flex-col animate-in slide-in-from-right duration-250">
+            <div className="p-3.5 border-b border-slate-800 flex items-center justify-between text-white">
+              <div className="flex items-center gap-2">
+                <span className="text-sm" aria-hidden="true">🌪️</span>
+                <span className="font-bold text-sm">Filtros Globales</span>
+                {activeFiltersCount > 0 && (
+                  <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs">
+                    {activeFiltersCount} activo{activeFiltersCount > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileFiltersOpen(false)}
+                className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                aria-label="Cerrar filtros"
+              >
+                <i className="bi bi-x-lg text-base"></i>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              <GlobalFilters
+                filters={filters}
+                onChangeFilters={handleFilterChange}
+                onResetFilters={handleResetFilters}
+                availableCompanies={availableCompanies}
+                availableDepartments={availableDepartments}
+                availableLeaders={availableLeaders}
+                availableWeeks={availableWeeks}
+                availableMonths={availableMonths}
+                filteredCounts={{
+                  ot: kpis.filteredOvertime.length,
+                  att: kpis.filteredAttendance.length,
+                }}
+                totalRecordsCount={{
+                  ot: overtimeRecords.length,
+                  att: attendanceRecords.length,
+                }}
+                isCollapsed={false}
+                onToggleCollapsed={() => {}}
+                hideCollapseButton={true}
+                leaderToDeptMap={baseTeCatalog.leaderToDepartments}
+              />
+            </div>
+
+            {/* Botón Aplicar / Cerrar en la parte inferior */}
+            <div className="p-3.5 bg-slate-900 border-t border-slate-800 shadow-lg">
+              <button
+                type="button"
+                onClick={() => setMobileFiltersOpen(false)}
+                className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98"
+              >
+                <i className="bi bi-check2 text-base"></i>
+                <span>Aplicar / Cerrar Filtros</span>
+                {activeFiltersCount > 0 && (
+                  <span className="bg-blue-800 text-blue-100 text-[10px] font-mono px-2 py-0.5 rounded-full">
+                    {activeFiltersCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -30,6 +30,7 @@ import {
 } from '../../types';
 import { determineSyndicatedStatus } from '../../services/businessRules';
 import { exportToExcel } from '../../services/excelParser';
+import { isRecordInLeaderScope } from '../../services/kpiEngine';
 
 interface AbsenceConcentratedViewProps {
   records: AbsenceRecord[];
@@ -38,6 +39,7 @@ interface AbsenceConcentratedViewProps {
   allAttendance?: AttendanceRecord[];
   isSyncing?: boolean;
   onSyncCloud?: () => Promise<void>;
+  leaderToDeptMap?: Map<string, Set<string>>;
 }
 
 const currencyFormatter = new Intl.NumberFormat('es-MX', {
@@ -91,6 +93,7 @@ export const AbsenceConcentratedView: React.FC<AbsenceConcentratedViewProps> = (
   allAttendance = [],
   isSyncing = false,
   onSyncCloud,
+  leaderToDeptMap,
 }) => {
   // Chart 1 controls: X-axis dimension & breakdown mode
   const [chartDimension, setChartDimension] = useState<'dept' | 'week' | 'date'>('dept');
@@ -187,9 +190,9 @@ export const AbsenceConcentratedView: React.FC<AbsenceConcentratedViewProps> = (
         }
       }
 
-      // Leader filter (linked to Líder de área)
+      // Leader filter (linked to Líder de área y departamentos del líder en Base TE)
       if (filters.leaders.length > 0 && !filters.leaders.includes('ALL')) {
-        if (!filters.leaders.includes(rec.leader)) {
+        if (!isRecordInLeaderScope(rec, filters.leaders, leaderToDeptMap)) {
           return false;
         }
       }

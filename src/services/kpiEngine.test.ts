@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyFilters, computeKPIs } from './kpiEngine';
+import { applyFilters, computeKPIs, extractBaseTeLeaderCatalog, isRecordInLeaderScope } from './kpiEngine';
 import { OvertimeRecord, AttendanceRecord, GlobalFilterState, ThresholdConfig } from '../types';
 
 const mockOvertime: OvertimeRecord[] = [
@@ -430,5 +430,52 @@ describe('kpiEngine Company Presets & Filtering', () => {
     // Total requests = 3, but collaboratorsWithOtCount must be 1 (only EMP_ACTIVE_1 with hours > 0)
     expect(kpis.totalOtRequests).toBe(3);
     expect(kpis.collaboratorsWithOtCount).toBe(1);
+  });
+
+  it('extracts real Base TE leader-department catalog and maps leader to departments', () => {
+    const baseTeSample = [
+      { department: '  Producción  ', leader: '  Ing. Juan Pérez  ' },
+      { department: 'Mantenimiento', leader: 'Ing. Juan Pérez' },
+      { department: 'Almacén', leader: 'Lic. Laura Soto' },
+      { department: 'Calidad', leader: 'Sin Líder Asignado' },
+    ];
+
+    const catalog = extractBaseTeLeaderCatalog(baseTeSample);
+    expect(catalog.leadersList).toEqual(['Ing. Juan Pérez', 'Lic. Laura Soto']);
+    expect(catalog.departmentsList).toEqual(['Almacén', 'Calidad', 'Mantenimiento', 'Producción']);
+
+    const juanDepts = catalog.leaderToDepartments.get('Ing. Juan Pérez');
+    expect(juanDepts).toBeDefined();
+    expect(Array.from(juanDepts!)).toEqual(['Producción', 'Mantenimiento']);
+
+    // Check isRecordInLeaderScope
+    expect(isRecordInLeaderScope({ department: 'Producción' }, ['Ing. Juan Pérez'], catalog.leaderToDepartments)).toBe(true);
+    expect(isRecordInLeaderScope({ department: 'Almacén' }, ['Ing. Juan Pérez'], catalog.leaderToDepartments)).toBe(false);
+  });
+
+  it('filters overtime and attendance by leader assigned departments using Base TE catalog', () => {
+    const baseTeSample = [
+      { department: 'Produccion', leader: 'Carlos Lopez' },
+      { department: 'Mantenimiento', leader: 'Pedro Ramos' },
+      { department: 'Logistica', leader: 'Ana Morales' },
+    ];
+    const catalog = extractBaseTeLeaderCatalog(baseTeSample);
+
+    const leaderFilter: GlobalFilterState = {
+      ...defaultFilters,
+      leaders: ['Carlos Lopez'],
+    };
+
+    const { filteredOvertime, filteredAttendance } = applyFilters(
+      mockOvertime,
+      mockAttendance,
+      leaderFilter,
+      catalog.leaderToDepartments
+    );
+
+    // Records in Produccion or with leader Carlos Lopez should pass
+    expect(filteredOvertime.every((r) => r.department === 'Produccion' || r.leader === 'Carlos Lopez')).toBe(true);
+    expect(filteredOvertime.length).toBeGreaterThan(0);
+    expect(filteredAttendance.every((r) => r.department === 'Produccion' || r.leader === 'Carlos Lopez')).toBe(true);
   });
 });

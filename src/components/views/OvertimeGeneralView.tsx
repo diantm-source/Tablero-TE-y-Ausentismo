@@ -19,6 +19,7 @@ import {
 import { determineSyndicatedStatus } from '../../services/businessRules';
 import { exportToExcel } from '../../services/excelParser';
 import { getTurnoBadgeClass, enrichMatrixWithLeaders } from '../../services/overtimeParser';
+import { isRecordInLeaderScope } from '../../services/kpiEngine';
 
 interface OvertimeGeneralViewProps {
   records: AnnualOvertimeRecord[];
@@ -28,6 +29,7 @@ interface OvertimeGeneralViewProps {
   allAttendance?: AttendanceRecord[];
   isSyncing?: boolean;
   onSyncCloud?: () => Promise<void>;
+  leaderToDeptMap?: Map<string, Set<string>>;
 }
 
 const currencyFormatter = new Intl.NumberFormat('es-MX', {
@@ -70,6 +72,7 @@ export const OvertimeGeneralView: React.FC<OvertimeGeneralViewProps> = ({
   allAttendance = [],
   isSyncing = false,
   onSyncCloud,
+  leaderToDeptMap,
 }) => {
   const [globalFilter, setGlobalFilter] = useState('');
   const [sorting, setSorting] = useState<SortingState>([
@@ -193,9 +196,9 @@ export const OvertimeGeneralView: React.FC<OvertimeGeneralViewProps> = ({
         }
       }
 
-      // Leader filter (matches Líder de área si está disponible)
+      // Leader filter (matches Líder de área o departamentos asignados en Base TE)
       if (filters.leaders.length > 0 && !filters.leaders.includes('ALL')) {
-        if (rec.leader && !filters.leaders.includes(rec.leader)) {
+        if (!isRecordInLeaderScope(rec, filters.leaders, leaderToDeptMap)) {
           return false;
         }
       }

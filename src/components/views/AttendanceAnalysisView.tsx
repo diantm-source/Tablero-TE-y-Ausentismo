@@ -27,6 +27,7 @@ interface AttendanceAnalysisViewProps {
   filters?: GlobalFilterState;
   isSyncing?: boolean;
   onSyncCloud?: () => Promise<void>;
+  leaderToDeptMap?: Map<string, Set<string>>;
 }
 
 const FALLBACK_FILTERS: GlobalFilterState = {
@@ -52,6 +53,7 @@ export const AttendanceAnalysisView: React.FC<AttendanceAnalysisViewProps> = ({
   filters = FALLBACK_FILTERS,
   isSyncing = false,
   onSyncCloud,
+  leaderToDeptMap,
 }) => {
   const [activeTab, setActiveTab] = useState<'concentrated' | 'biotime'>('concentrated');
   const [tableSearch, setTableSearch] = useState('');
@@ -240,6 +242,7 @@ export const AttendanceAnalysisView: React.FC<AttendanceAnalysisViewProps> = ({
           allAttendance={allAttendance}
           isSyncing={isSyncing}
           onSyncCloud={onSyncCloud}
+          leaderToDeptMap={leaderToDeptMap}
         />
       )}
 

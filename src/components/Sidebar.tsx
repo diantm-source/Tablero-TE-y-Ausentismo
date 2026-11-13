@@ -8,6 +8,7 @@ interface SidebarProps {
   onToggleCollapse: () => void;
   pendingOtCount: number;
   auditIncidentsCount: number;
+  isMobileDrawer?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -17,6 +18,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapse,
   pendingOtCount,
   auditIncidentsCount,
+  isMobileDrawer = false,
 }) => {
   const menuItems: {
     id: NavigationSection;
@@ -68,30 +70,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 z-20 shrink-0 ${
-        collapsed ? 'w-16' : 'w-64'
+      className={`bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 z-20 shrink-0 h-full ${
+        isMobileDrawer ? 'w-full' : collapsed ? 'w-16' : 'w-64'
       }`}
     >
       {/* Brand / Collapse toggle */}
-      <div className="p-3.5 border-b border-slate-800 flex items-center justify-between">
-        {!collapsed && (
-          <div className="flex items-center gap-2 overflow-hidden">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 truncate">
-              Módulos del Sistema
-            </span>
-          </div>
-        )}
-        <button
-          onClick={onToggleCollapse}
-          title={collapsed ? 'Expandir barra lateral' : 'Colapsar barra lateral'}
-          className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors mx-auto"
-        >
-          <i
-            className={`bi ${collapsed ? 'bi-layout-sidebar-inset' : 'bi-layout-sidebar-inset-reverse'} text-lg`}
-          ></i>
-        </button>
-      </div>
+      {!isMobileDrawer && (
+        <div className="p-3.5 border-b border-slate-800 flex items-center justify-between">
+          {!collapsed && (
+            <div className="flex items-center gap-2 overflow-hidden">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 truncate">
+                Módulos del Sistema
+              </span>
+            </div>
+          )}
+          <button
+            onClick={onToggleCollapse}
+            title={collapsed ? 'Expandir barra lateral' : 'Colapsar barra lateral'}
+            className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors mx-auto cursor-pointer"
+          >
+            <i
+              className={`bi ${collapsed ? 'bi-layout-sidebar-inset' : 'bi-layout-sidebar-inset-reverse'} text-lg`}
+            ></i>
+          </button>
+        </div>
+      )}
 
       {/* Navigation List */}
       <nav className="flex-1 px-2.5 py-4 space-y-1.5 overflow-y-auto">

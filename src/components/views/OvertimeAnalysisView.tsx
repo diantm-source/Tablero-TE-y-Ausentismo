@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { FilteredKPIs } from '../../services/kpiEngine';
+import { FilteredKPIs, isRecordInLeaderScope } from '../../services/kpiEngine';
 import {
   AnnualOvertimeRecord,
   AttendanceRecord,
@@ -39,6 +39,7 @@ interface OvertimeAnalysisViewProps {
   filters: GlobalFilterState;
   isSyncing?: boolean;
   onSyncCloud?: () => Promise<void>;
+  leaderToDeptMap?: Map<string, Set<string>>;
 }
 
 export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
@@ -50,6 +51,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
   filters,
   isSyncing = false,
   onSyncCloud,
+  leaderToDeptMap,
 }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'trafficLight' | 'dashboard' | 'pending'>('general');
   const [trendMode, setTrendMode] = useState<'weekly' | 'daily'>('weekly');
@@ -110,7 +112,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
 
       // Líder
       if (filters.leaders.length > 0 && !filters.leaders.includes('ALL')) {
-        if (rec.leader && !filters.leaders.includes(rec.leader)) return false;
+        if (!isRecordInLeaderScope(rec, filters.leaders, leaderToDeptMap)) return false;
       }
 
       // Semana
@@ -761,6 +763,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
           allAttendance={allAttendance}
           isSyncing={isSyncing}
           onSyncCloud={onSyncCloud}
+          leaderToDeptMap={leaderToDeptMap}
         />
       )}
 

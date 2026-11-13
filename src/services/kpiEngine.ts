@@ -91,10 +91,109 @@ export interface FilteredKPIs {
   dateRangeCovered: { start: string; end: string } | null;
 }
 
+export interface BaseTeLeaderCatalog {
+  leaderToDepartments: Map<string, Set<string>>;
+  departmentToLeaders: Map<string, Set<string>>;
+  leadersList: string[];
+  departmentsList: string[];
+}
+
+/**
+ * Extrae y normaliza el catálogo relacional de Líder de Área y Departamentos
+ * única y exclusivamente desde los registros de Base TE.
+ */
+export function extractBaseTeLeaderCatalog(
+  records: { department?: string; leader?: string; 'Líder de área'?: string; Departamento?: string }[]
+): BaseTeLeaderCatalog {
+  const leaderToDeptMap = new Map<string, Set<string>>();
+  const deptToLeaderMap = new Map<string, Set<string>>();
+  const allDepts = new Set<string>();
+  const allLeaders = new Set<string>();
+
+  if (!records || !Array.isArray(records)) {
+    return {
+      leaderToDepartments: leaderToDeptMap,
+      departmentToLeaders: deptToLeaderMap,
+      leadersList: [],
+      departmentsList: [],
+    };
+  }
+
+  for (const r of records) {
+    const rawDept = (r.department || (r as unknown as Record<string, string>)['Departamento'] || '').trim();
+    const rawLeader = (r.leader || (r as unknown as Record<string, string>)['Líder de área'] || '').trim();
+
+    if (!rawDept && !rawLeader) continue;
+
+    const normDept = rawDept;
+    const normLeader = rawLeader;
+
+    if (normDept) {
+      allDepts.add(normDept);
+    }
+
+    if (
+      normLeader &&
+      normLeader !== 'Sin Líder Asignado' &&
+      normLeader !== 'Sin Líder' &&
+      normLeader !== '-' &&
+      normLeader !== 'Sin Asignar'
+    ) {
+      allLeaders.add(normLeader);
+      if (normDept) {
+        if (!leaderToDeptMap.has(normLeader)) {
+          leaderToDeptMap.set(normLeader, new Set<string>());
+        }
+        leaderToDeptMap.get(normLeader)!.add(normDept);
+
+        if (!deptToLeaderMap.has(normDept)) {
+          deptToLeaderMap.set(normDept, new Set<string>());
+        }
+        deptToLeaderMap.get(normDept)!.add(normLeader);
+      }
+    }
+  }
+
+  return {
+    leaderToDepartments: leaderToDeptMap,
+    departmentToLeaders: deptToLeaderMap,
+    leadersList: Array.from(allLeaders).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' })),
+    departmentsList: Array.from(allDepts).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' })),
+  };
+}
+
+/**
+ * Comprueba si un registro pertenece al ámbito del líder seleccionado,
+ * verificando si el departamento del registro está bajo la responsabilidad de ese líder en Base TE.
+ */
+export function isRecordInLeaderScope(
+  rec: { department?: string; leader?: string },
+  selectedLeaders: string[],
+  leaderToDeptMap?: Map<string, Set<string>>
+): boolean {
+  if (!selectedLeaders || selectedLeaders.length === 0 || selectedLeaders.includes('ALL')) {
+    return true;
+  }
+  for (const leader of selectedLeaders) {
+    if (leader === 'ALL') return true;
+    if (rec.leader && rec.leader.trim().toLowerCase() === leader.trim().toLowerCase()) {
+      return true;
+    }
+    if (leaderToDeptMap && rec.department) {
+      const depts = leaderToDeptMap.get(leader);
+      if (depts && depts.has(rec.department.trim())) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export function applyFilters(
   overtimeList: OvertimeRecord[],
   attendanceList: AttendanceRecord[],
-  filters: GlobalFilterState
+  filters: GlobalFilterState,
+  leaderToDeptMap?: Map<string, Set<string>>
 ): { filteredOvertime: OvertimeRecord[]; filteredAttendance: AttendanceRecord[] } {
   // 1. Company Filter for Overtime: All companies eligible (MLBM, Polaquimia, Polatecnia, Barteleu, Becarios, Externos, etc.)
   const passesOvertimeCompany = (comp: string) => {
@@ -151,7 +250,7 @@ export function applyFilters(
     }
 
     if (filters.leaders.length > 0 && !filters.leaders.includes('ALL')) {
-      if (!filters.leaders.includes(rec.leader)) return false;
+      if (!isRecordInLeaderScope(rec, filters.leaders, leaderToDeptMap)) return false;
     }
 
     if (filters.overtimeStatus !== 'ALL') {
@@ -199,7 +298,7 @@ export function applyFilters(
     }
 
     if (filters.leaders.length > 0 && !filters.leaders.includes('ALL')) {
-      if (!filters.leaders.includes(rec.leader)) return false;
+      if (!isRecordInLeaderScope(rec, filters.leaders, leaderToDeptMap)) return false;
     }
 
     if (filters.collaboratorType === 'SINDICALIZADO' && !rec.isSyndicated) return false;
@@ -241,9 +340,10 @@ export function computeKPIs(
   allOvertime: OvertimeRecord[],
   allAttendance: AttendanceRecord[],
   filters: GlobalFilterState,
-  thresholds: ThresholdConfig
+  thresholds: ThresholdConfig,
+  leaderToDeptMap?: Map<string, Set<string>>
 ): FilteredKPIs {
-  const { filteredOvertime, filteredAttendance } = applyFilters(allOvertime, allAttendance, filters);
+  const { filteredOvertime, filteredAttendance } = applyFilters(allOvertime, allAttendance, filters, leaderToDeptMap);
 
   // Date range covered
   let minDate = '';

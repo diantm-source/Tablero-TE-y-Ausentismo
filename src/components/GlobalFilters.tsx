@@ -15,6 +15,8 @@ interface GlobalFiltersProps {
   totalRecordsCount?: { ot: number; att: number };
   isCollapsed: boolean;
   onToggleCollapsed: () => void;
+  hideCollapseButton?: boolean;
+  leaderToDeptMap?: Map<string, Set<string>>;
 }
 
 export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
@@ -30,10 +32,12 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
   totalRecordsCount,
   isCollapsed,
   onToggleCollapsed,
+  hideCollapseButton = false,
+  leaderToDeptMap,
 }) => {
   return (
     <div
-      className={`bg-slate-900/95 border-r border-slate-800 transition-all duration-300 flex flex-col shrink-0 text-slate-200 z-10 ${
+      className={`bg-slate-900/95 border-r border-slate-800 transition-all duration-300 flex flex-col shrink-0 text-slate-200 z-10 h-full ${
         isCollapsed ? 'w-10' : 'w-72'
       }`}
     >
@@ -47,17 +51,19 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
             </span>
           </div>
         )}
-        <button
-          onClick={onToggleCollapsed}
-          title={isCollapsed ? 'Expandir panel de filtros' : 'Ocultar panel de filtros'}
-          className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 mx-auto"
-        >
-          <i
-            className={`bi ${
-              isCollapsed ? 'bi-chevron-double-right' : 'bi-chevron-double-left'
-            } text-xs`}
-          ></i>
-        </button>
+        {!hideCollapseButton && (
+          <button
+            onClick={onToggleCollapsed}
+            title={isCollapsed ? 'Expandir panel de filtros' : 'Ocultar panel de filtros'}
+            className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 mx-auto cursor-pointer"
+          >
+            <i
+              className={`bi ${
+                isCollapsed ? 'bi-chevron-double-right' : 'bi-chevron-double-left'
+              } text-xs`}
+            ></i>
+          </button>
+        )}
       </div>
 
       {isCollapsed ? (
@@ -109,8 +115,8 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
             </div>
           )}
 
-          {/* Quick Filter Presets */}
-          <div className="space-y-1.5">
+          {/* 1. FILTROS DE EMPRESA - Ocultado temporalmente por requerimiento manteniendo estado neutro */}
+          <div className="hidden" aria-hidden="true">
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 Filtros de Empresa
@@ -177,8 +183,8 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
             </div>
           </div>
 
-          {/* Quick Collaborator Presets */}
-          <div className="space-y-1.5">
+          {/* 2. TIPO DE COLABORADOR - Ocultado temporalmente por requerimiento manteniendo estado neutro */}
+          <div className="hidden" aria-hidden="true">
             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               Tipo de Colaborador
             </label>
@@ -234,8 +240,8 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
               </div>
             </div>
 
-            {/* Empresa Dropdown */}
-            <div>
+            {/* 3. Empresa Dropdown - Ocultado temporalmente por requerimiento manteniendo estado neutro */}
+            <div className="hidden" aria-hidden="true">
               <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                 Empresa
               </label>
@@ -285,39 +291,61 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
               </select>
             </div>
 
-            {/* Departamento Dropdown */}
+            {/* Líder de Departamento / Líder de Área (Exclusivo desde Base TE) */}
             <div>
               <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                Departamento
-              </label>
-              <select
-                value={filters.departments[0] || 'ALL'}
-                onChange={(e) => onChangeFilters({ departments: [e.target.value] })}
-                className="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none focus:border-blue-500"
-              >
-                <option value="ALL">Todos los departamentos ({availableDepartments.length})</option>
-                {availableDepartments.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Líder de Departamento */}
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                Líder de Departamento
+                Líder de Área
               </label>
               <select
                 value={filters.leaders[0] || 'ALL'}
-                onChange={(e) => onChangeFilters({ leaders: [e.target.value] })}
+                onChange={(e) => {
+                  const selectedLeader = e.target.value;
+                  if (selectedLeader === 'ALL') {
+                    onChangeFilters({ leaders: ['ALL'] });
+                  } else {
+                    const allowedDepts = leaderToDeptMap?.get(selectedLeader);
+                    const curDept = filters.departments[0];
+                    const keepDept = curDept && curDept !== 'ALL' && allowedDepts?.has(curDept);
+                    onChangeFilters({
+                      leaders: [selectedLeader],
+                      departments: keepDept ? [curDept] : ['ALL'],
+                    });
+                  }
+                }}
                 className="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none focus:border-blue-500"
               >
                 <option value="ALL">Todos los líderes ({availableLeaders.length})</option>
                 {availableLeaders.map((l) => (
                   <option key={l} value={l}>
                     {l}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Departamento (Exclusivo desde Base TE - Filtrado en cascada si hay Líder activo) */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-semibold text-slate-300">
+                  Departamento
+                </label>
+                {filters.leaders.length > 0 && !filters.leaders.includes('ALL') && (
+                  <span className="text-[10px] text-blue-400 font-medium">Por líder</span>
+                )}
+              </div>
+              <select
+                value={filters.departments[0] || 'ALL'}
+                onChange={(e) => onChangeFilters({ departments: [e.target.value] })}
+                className="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none focus:border-blue-500"
+              >
+                <option value="ALL">
+                  {filters.leaders.length > 0 && !filters.leaders.includes('ALL')
+                    ? `Todos del líder (${availableDepartments.length})`
+                    : `Todos los departamentos (${availableDepartments.length})`}
+                </option>
+                {availableDepartments.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
                   </option>
                 ))}
               </select>
