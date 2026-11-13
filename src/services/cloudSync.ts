@@ -20,6 +20,7 @@ import {
 } from './businessRules';
 import {
   calculateDurationHours,
+  canonicalizeDepartment,
   formatShiftLabel,
   normalizeApprovalStatus,
   parseDateTime,
@@ -591,10 +592,12 @@ export function parseCSVToOvertimeRecords(
       findRowValue(row, ['empresa', 'compania', 'compañia', 'compañía', 'razon social']) || 'Polaquimia'
     ).trim();
 
-    const rawDept = String(
-      findRowValue(row, ['departamento', 'depto', 'area', 'área', 'seccion', 'centro de costos'], ['lider']) ||
-        'Sin Departamento'
-    ).trim();
+    const rawDept = canonicalizeDepartment(
+      String(
+        findRowValue(row, ['departamento', 'depto', 'area', 'área', 'seccion', 'centro de costos'], ['lider']) ||
+          'Sin Departamento'
+      ).trim()
+    );
 
     const rawLeader = String(
       findRowValue(row, [
@@ -897,10 +900,12 @@ export function parseCSVToAnnualOvertimeRecords(csvText: string): AnnualOvertime
       ? formatDateDDMMYYYY(parsedDate)
       : String(rawFecha || '').trim() || '-';
 
-    const department = String(
-      findRowValue(row, ['departamento', 'depto', 'area', 'área', 'seccion'], ['lider']) ||
-        'Sin Departamento'
-    ).trim();
+    const department = canonicalizeDepartment(
+      String(
+        findRowValue(row, ['departamento', 'depto', 'area', 'área', 'seccion'], ['lider']) ||
+          'Sin Departamento'
+      ).trim()
+    );
 
     const leader = String(
       findRowValue(row, [
@@ -1155,10 +1160,12 @@ export function parseCSVToAbsenceRecords(csvText: string): AbsenceRecord[] {
         'Sin Puesto'
     ).trim();
 
-    const department = String(
-      findExactOrAliasRowValue(row, ['departamento'], ['depto', 'area', 'área', 'seccion'], ['lider']) ||
-        'Sin Departamento'
-    ).trim();
+    const department = canonicalizeDepartment(
+      String(
+        findExactOrAliasRowValue(row, ['departamento'], ['depto', 'area', 'área', 'seccion'], ['lider']) ||
+          'Sin Departamento'
+      ).trim()
+    );
 
     const absenceType = String(
       findExactOrAliasRowValue(

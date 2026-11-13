@@ -19,6 +19,11 @@ import {
   EmployeeSchema,
 } from '../schemas';
 import { z } from 'zod';
+import {
+  canonicalizeDepartment,
+  normalizeDeptKey,
+  buildLatestDepartmentLeaderMap,
+} from './overtimeParser';
 
 export interface CompanyEntity {
   id: string; // e.g. 'POLAQUIMIA'
@@ -535,6 +540,156 @@ export async function initDatabaseWithSeed(): Promise<void> {
 
   // 7. Sanitize any duplicate cloud import batches from previous dynamic IDs
   await sanitizeCloudImportBatches();
+
+  // 8. Sanitize department names (e.g. AGUA RESIDUAL -> PTA TRAT A RESIDUAL) and sync latest leaders
+  await sanitizeDepartmentNamesAndLeaders();
+}
+
+/**
+ * Normaliza nombres de departamentos a sus nombres canónicos (ej. "AGUA RESIDUAL" -> "PTA TRAT A RESIDUAL")
+ * y sincroniza todos los registros históricos de cada área con el líder más reciente de esa área.
+ */
+export async function sanitizeDepartmentNamesAndLeaders(): Promise<void> {
+  await db.transaction(
+    'rw',
+    [
+      db.overtimeRecords,
+      db.annualOvertimeRecords,
+      db.absenceRecords,
+      db.weeklyMatrixRecords,
+      db.attendanceRecords,
+      db.leaders,
+      db.dashboardConfig,
+    ],
+    async () => {
+      const [annualOt, ot, matriz, absences, att, leaders] = await Promise.all([
+        db.annualOvertimeRecords.toArray(),
+        db.overtimeRecords.toArray(),
+        db.weeklyMatrixRecords.toArray(),
+        db.absenceRecords.toArray(),
+        db.attendanceRecords.toArray(),
+        db.leaders.toArray(),
+      ]);
+
+      if (
+        annualOt.length === 0 &&
+        ot.length === 0 &&
+        matriz.length === 0 &&
+        absences.length === 0 &&
+        att.length === 0
+      ) {
+        return;
+      }
+
+      // 1. Obtener líderes más recientes por departamento combinando todas las fuentes
+      const allRecords = [...annualOt, ...ot, ...matriz, ...absences];
+      const deptToLatestLeader = buildLatestDepartmentLeaderMap(allRecords as any);
+
+      // Si el usuario configuró líderes específicos en el catálogo de líderes, integrarlos
+      for (const l of leaders) {
+        if (l.department && l.leaderName && l.leaderName.trim()) {
+          const cDept = canonicalizeDepartment(l.department);
+          deptToLatestLeader.set(normalizeDeptKey(cDept), l.leaderName.trim());
+          deptToLatestLeader.set(cDept, l.leaderName.trim());
+        }
+      }
+
+      let changesMade = false;
+
+      // 2. Actualizar annualOvertimeRecords
+      const updatedAnnual = annualOt.map((r) => {
+        const cDept = canonicalizeDepartment(r.department);
+        const l = deptToLatestLeader.get(normalizeDeptKey(cDept)) || deptToLatestLeader.get(cDept) || r.leader;
+        if (cDept !== r.department || (l && l !== r.leader && l !== 'Sin Líder Asignado')) {
+          changesMade = true;
+          return { ...r, department: cDept, leader: l || r.leader };
+        }
+        return r;
+      });
+      if (changesMade) {
+        await db.annualOvertimeRecords.bulkPut(updatedAnnual);
+      }
+
+      // 3. Actualizar overtimeRecords
+      let otChanges = false;
+      const updatedOt = ot.map((r) => {
+        const cDept = canonicalizeDepartment(r.department);
+        const l = deptToLatestLeader.get(normalizeDeptKey(cDept)) || deptToLatestLeader.get(cDept) || r.leader;
+        if (cDept !== r.department || (l && l !== r.leader && l !== 'Sin Líder Asignado')) {
+          otChanges = true;
+          return { ...r, department: cDept, leader: l || r.leader };
+        }
+        return r;
+      });
+      if (otChanges) {
+        await db.overtimeRecords.bulkPut(updatedOt);
+      }
+
+      // 4. Actualizar weeklyMatrixRecords
+      let matrizChanges = false;
+      const updatedMatriz = matriz.map((r) => {
+        const cDept = canonicalizeDepartment(r.department);
+        const l = deptToLatestLeader.get(normalizeDeptKey(cDept)) || deptToLatestLeader.get(cDept) || r.leader;
+        if (cDept !== r.department || (l && l !== r.leader && l !== 'Sin Líder Asignado')) {
+          matrizChanges = true;
+          return { ...r, department: cDept, leader: l || r.leader, liderArea: l || r.liderArea };
+        }
+        return r;
+      });
+      if (matrizChanges) {
+        await db.weeklyMatrixRecords.bulkPut(updatedMatriz);
+      }
+
+      // 5. Actualizar absenceRecords
+      let absChanges = false;
+      const updatedAbs = absences.map((r) => {
+        const cDept = canonicalizeDepartment(r.department);
+        const l = deptToLatestLeader.get(normalizeDeptKey(cDept)) || deptToLatestLeader.get(cDept) || r.leader;
+        if (cDept !== r.department || (l && l !== r.leader && l !== 'Sin Líder Asignado')) {
+          absChanges = true;
+          return { ...r, department: cDept, leader: l || r.leader };
+        }
+        return r;
+      });
+      if (absChanges) {
+        await db.absenceRecords.bulkPut(updatedAbs);
+      }
+
+      // 6. Actualizar attendanceRecords
+      let attChanges = false;
+      const updatedAtt = att.map((r) => {
+        const cDept = canonicalizeDepartment(r.department);
+        const l = deptToLatestLeader.get(normalizeDeptKey(cDept)) || deptToLatestLeader.get(cDept) || r.leader;
+        if (cDept !== r.department || (l && l !== r.leader && l !== 'Sin Líder Asignado')) {
+          attChanges = true;
+          return { ...r, department: cDept, leader: l || r.leader };
+        }
+        return r;
+      });
+      if (attChanges) {
+        await db.attendanceRecords.bulkPut(updatedAtt);
+      }
+
+      // 7. Actualizar leaders
+      let leadChanges = false;
+      const updatedLeaders = leaders.map((l) => {
+        const cDept = canonicalizeDepartment(l.department);
+        if (cDept !== l.department) {
+          leadChanges = true;
+          return { ...l, department: cDept };
+        }
+        return l;
+      });
+      if (leadChanges) {
+        await db.leaders.bulkPut(updatedLeaders);
+      }
+
+      // Si hubo cambios, invalidar caché de catálogos precalculados para recalcular limpiamente
+      if (changesMade || otChanges || matrizChanges || absChanges || attChanges || leadChanges) {
+        await db.dashboardConfig.delete('precalculated_catalogs');
+      }
+    }
+  );
 }
 
 function isCloudOvertimeBatch(

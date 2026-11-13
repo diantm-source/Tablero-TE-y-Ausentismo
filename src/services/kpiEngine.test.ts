@@ -533,4 +533,53 @@ describe('kpiEngine Company Presets & Filtering', () => {
     expect(emp1.approvedHours).toBe(7);
     expect(emp2.approvedHours).toBe(13);
   });
+
+  it('unifica PTA TRAT A RESIDUAL y AGUA RESIDUAL y actualiza al nuevo líder del área', () => {
+    const records = [
+      // Semana 38: Registrado como AGUA RESIDUAL con líder antiguo
+      {
+        department: 'AGUA RESIDUAL',
+        leader: 'Ing. Lider Antiguo',
+        weekNumber: 38,
+        isoYear: 2026,
+        fecha: '2026-09-18',
+      },
+      // Semana 44: Registrado como PTA TRAT A RESIDUAL con nuevo líder
+      {
+        department: 'PTA TRAT A RESIDUAL',
+        leader: 'Ing. Lider Nuevo',
+        weekNumber: 44,
+        isoYear: 2026,
+        fecha: '2026-10-30',
+      },
+    ];
+
+    const catalog = extractBaseTeLeaderCatalog(records);
+
+    // Debe existir un único departamento canónico: PTA TRAT A RESIDUAL
+    expect(catalog.departmentsList).toEqual(['PTA TRAT A RESIDUAL']);
+
+    // La lista de líderes debe incluir únicamente al líder activo y actualizado
+    expect(catalog.leadersList).toEqual(['Ing. Lider Nuevo']);
+
+    // El departamento debe estar asignado única y exclusivamente al nuevo líder
+    const nuevoDepts = catalog.leaderToDepartments.get('Ing. Lider Nuevo');
+    expect(nuevoDepts).toBeDefined();
+    expect(Array.from(nuevoDepts!)).toEqual(['PTA TRAT A RESIDUAL']);
+
+    // El líder antiguo no debe tener asignado este departamento
+    const antiguoDepts = catalog.leaderToDepartments.get('Ing. Lider Antiguo');
+    expect(antiguoDepts).toBeUndefined();
+
+    // Verificación de alcance de filtro (isRecordInLeaderScope)
+    expect(
+      isRecordInLeaderScope({ department: 'AGUA RESIDUAL' }, ['Ing. Lider Nuevo'], catalog.leaderToDepartments)
+    ).toBe(true);
+    expect(
+      isRecordInLeaderScope({ department: 'PTA TRAT A RESIDUAL' }, ['Ing. Lider Nuevo'], catalog.leaderToDepartments)
+    ).toBe(true);
+    expect(
+      isRecordInLeaderScope({ department: 'PTA TRAT A RESIDUAL' }, ['Ing. Lider Antiguo'], catalog.leaderToDepartments)
+    ).toBe(false);
+  });
 });

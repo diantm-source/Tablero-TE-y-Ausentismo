@@ -241,20 +241,187 @@ export function evaluateTrafficLight(totalHoras: number): TrafficLightStatus {
 }
 
 /**
+ * Estandariza y unifica nombres de departamentos oficiales:
+ * - "PTA TRAT A RESIDUAL" y "AGUA RESIDUAL" corresponden a la misma área operativa
+ *   y se unifican obligatoriamente bajo el nombre canónico oficial "PTA TRAT A RESIDUAL".
+ * - "GENERADOR VAPOR(CALDE" y variantes de caldera/generador de vapor.
+ * - "MANTENIMIENTO TLAX PQ" y variantes.
+ */
+export function canonicalizeDepartment(raw: unknown): string {
+  if (raw === null || raw === undefined) return '';
+  const str = String(raw).trim();
+  if (!str) return '';
+
+  const norm = str
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Z0-9]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Regla Oficial: "PTA TRAT A RESIDUAL" y "AGUA RESIDUAL" son la misma área
+  if (
+    norm.includes('AGUA RESIDUAL') ||
+    norm.includes('AGUAS RESIDUALES') ||
+    norm.includes('PTA TRAT A RESIDUAL') ||
+    norm.includes('PTA TRAT AGUA') ||
+    norm.includes('PTA TRAT RESIDUAL') ||
+    norm.includes('TRATAMIENTO DE AGUA') ||
+    norm.includes('TRATAMIENTO AGUA') ||
+    norm.includes('PLANTA DE TRATAMIENTO') ||
+    norm.includes('PLANTA TRATAMIENTO') ||
+    norm === 'PTA TRAT'
+  ) {
+    return 'PTA TRAT A RESIDUAL';
+  }
+
+  if (
+    norm.includes('GENERADOR VAPOR') ||
+    norm.includes('GENERADOR DE VAPOR') ||
+    norm.includes('CALDERA')
+  ) {
+    return 'GENERADOR VAPOR(CALDE';
+  }
+
+  if (norm.includes('MANTENIMIENTO TLAX')) {
+    return 'MANTENIMIENTO TLAX PQ';
+  }
+
+  return str;
+}
+
+/**
  * Normalización Inteligente de Nombres de Departamento:
  * Convierte a mayúsculas, elimina acentos, colapsa/elimina espacios internos
  * y paréntesis abiertos/cerrados para comparación unificada de claves,
- * conservando el nombre oficial limpio de Base TE en la interfaz y filtros.
+ * unificando alias y conservando el nombre oficial limpio de Base TE en la interfaz y filtros.
  */
 export function normalizeDeptKey(raw: unknown): string {
   if (raw === null || raw === undefined) return '';
-  return String(raw)
+  const canonical = canonicalizeDepartment(raw);
+  return canonical
     .toUpperCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, '')
     .replace(/[\(\)\[\]\{\}]/g, '')
     .trim();
+}
+
+/**
+ * Extrae el líder más reciente / actualizado para cada departamento.
+ * Si un departamento cambió de líder de una semana a otra, esta función identifica
+ * el líder más reciente (por fecha o semana más alta) para mantener toda el área actualizada.
+ */
+export function buildLatestDepartmentLeaderMap(
+  records: {
+    department?: string;
+    Departamento?: string;
+    leader?: string;
+    'Líder de área'?: string;
+    liderArea?: string;
+    fecha?: string;
+    startDate?: string;
+    dateOnly?: string;
+    date?: string;
+    isoYear?: number;
+    weekNumber?: number;
+    isoWeek?: number;
+    monthNumber?: number;
+  }[]
+): Map<string, string> {
+  const deptToLatestLeader = new Map<string, string>();
+  const deptToHighestScore = new Map<string, number>();
+
+  if (!records || !Array.isArray(records)) {
+    return deptToLatestLeader;
+  }
+
+  for (let idx = 0; idx < records.length; idx++) {
+    const r = records[idx];
+    const rawDept = (r.department || (r as any).Departamento || '').trim();
+    const rawLeader = (r.leader || (r as any)['Líder de área'] || (r as any).liderArea || '').trim();
+
+    if (!rawDept || !rawLeader) continue;
+    if (
+      rawLeader === 'Sin Líder Asignado' ||
+      rawLeader === 'Sin Líder' ||
+      rawLeader === '-' ||
+      rawLeader === 'Sin Asignar' ||
+      rawLeader === 'Sin Asignar Lider' ||
+      rawLeader.toLowerCase() === rawDept.toLowerCase()
+    ) {
+      continue;
+    }
+
+    const canonicalDept = canonicalizeDepartment(rawDept);
+    const deptKey = normalizeDeptKey(canonicalDept);
+
+    // Calcular score de recencia cronológica
+    let score = idx; // Respaldo por orden de aparición en el archivo
+
+    // 1. Fecha explícita YYYY-MM-DD
+    const dateStr = r.fecha || r.startDate || r.dateOnly || r.date;
+    if (dateStr && /^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+      const time = new Date(dateStr).getTime();
+      if (!isNaN(time)) {
+        score = time;
+      }
+    } else {
+      // 2. Año y número de semana
+      const year = r.isoYear || (dateStr ? parseInt(String(dateStr).slice(0, 4), 10) : 2026) || 2026;
+      const week = r.weekNumber || r.isoWeek || 0;
+      if (week > 0) {
+        score = year * 100000 + week * 1000 + (idx % 1000);
+      } else {
+        const month = r.monthNumber || 0;
+        if (month > 0) {
+          score = year * 100000 + month * 100 + (idx % 100);
+        }
+      }
+    }
+
+    const currentBest = deptToHighestScore.get(deptKey);
+    if (currentBest === undefined || score >= currentBest) {
+      deptToHighestScore.set(deptKey, score);
+      deptToLatestLeader.set(deptKey, rawLeader);
+      deptToLatestLeader.set(canonicalDept, rawLeader);
+    }
+  }
+
+  return deptToLatestLeader;
+}
+
+/**
+ * Actualiza una lista de registros asegurando que el departamento esté canónico
+ * y que el líder esté actualizado al líder más reciente del departamento.
+ */
+export function updateRecordsWithLatestLeaders<
+  T extends { department?: string; leader?: string; liderArea?: string }
+>(
+  records: T[],
+  deptToLatestLeader?: Map<string, string>
+): T[] {
+  const leaderMap = deptToLatestLeader || buildLatestDepartmentLeaderMap(records);
+
+  return records.map((rec) => {
+    const rawDept = rec.department || '';
+    const canonicalDept = canonicalizeDepartment(rawDept);
+    const deptKey = normalizeDeptKey(canonicalDept);
+    const latestLeader =
+      leaderMap.get(deptKey) ||
+      leaderMap.get(canonicalDept) ||
+      rec.leader ||
+      'Sin Líder Asignado';
+
+    return {
+      ...rec,
+      department: canonicalDept,
+      leader: latestLeader,
+      ...(rec.liderArea !== undefined ? { liderArea: latestLeader } : {}),
+    };
+  });
 }
 
 /**
@@ -970,12 +1137,13 @@ export function parseWeeklyMatrixWorkbook(
 
   // Diccionario/Mapa para enriquecimiento y cruce de Líder de Área y Departamento Canónico desde Base TE
   const idToLeaderMap = new Map<string, string>();
-  const deptToLeaderMap = new Map<string, string>();
+  const deptToLatestLeader = buildLatestDepartmentLeaderMap(baseTeRecords as any);
   const normDeptToCanonicalMap = new Map<string, string>();
   const idToDeptMap = new Map<string, string>();
 
   // Departamentos canónicos conocidos por defecto de Base TE
   const KNOWN_CANONICAL_DEPTS: Record<string, string> = {
+    [normalizeDeptKey('PTA TRAT A RESIDUAL')]: 'PTA TRAT A RESIDUAL',
     [normalizeDeptKey('GENERADOR VAPOR(CALDE')]: 'GENERADOR VAPOR(CALDE',
     [normalizeDeptKey('MANTENIMIENTO TLAX PQ')]: 'MANTENIMIENTO TLAX PQ',
   };
@@ -985,7 +1153,7 @@ export function parseWeeklyMatrixWorkbook(
 
   if (baseTeRecords && Array.isArray(baseTeRecords)) {
     for (const b of baseTeRecords) {
-      const canonicalDept = ((b as any).department || (b as any).Departamento || '').trim();
+      const canonicalDept = canonicalizeDepartment(((b as any).department || (b as any).Departamento || '').trim());
       const id = ((b as any).employeeId || (b as any).ID || '').trim();
 
       if (canonicalDept) {
@@ -999,19 +1167,8 @@ export function parseWeeklyMatrixWorkbook(
       }
 
       const l = ((b as any).leader || (b as any)['Líder de área'] || '').trim();
-      if (l && l !== 'Sin Líder') {
-        if (id && !idToLeaderMap.has(id)) {
-          idToLeaderMap.set(id, l);
-        }
-        if (canonicalDept) {
-          const normKey = normalizeDeptKey(canonicalDept);
-          if (normKey && !deptToLeaderMap.has(normKey)) {
-            deptToLeaderMap.set(normKey, l);
-          }
-          if (!deptToLeaderMap.has(canonicalDept)) {
-            deptToLeaderMap.set(canonicalDept, l);
-          }
-        }
+      if (l && l !== 'Sin Líder' && id && !idToLeaderMap.has(id)) {
+        idToLeaderMap.set(id, l);
       }
     }
   }
@@ -1131,12 +1288,12 @@ export function parseWeeklyMatrixWorkbook(
       const normColA = normalizeDeptKey(colA);
       const canonicalFromDept = normColA ? normDeptToCanonicalMap.get(normColA) : undefined;
       const canonicalFromId = employeeId ? idToDeptMap.get(employeeId) : undefined;
-      const department = canonicalFromDept || canonicalFromId || colA || 'Sin Departamento';
+      const department = canonicalFromDept || canonicalFromId || canonicalizeDepartment(colA) || 'Sin Departamento';
 
-      // Cruce de Líder de Área con Base TE (ID -> Líder de área y como respaldo Departamento -> Líder de área)
-      let resolvedLeader = idToLeaderMap.get(employeeId);
+      // Cruce de Líder de Área con Base TE (Departamento -> Líder más reciente y como respaldo ID -> Líder)
+      let resolvedLeader = deptToLatestLeader.get(normalizeDeptKey(department)) || deptToLatestLeader.get(department);
       if (!resolvedLeader || resolvedLeader === 'Sin Líder') {
-        resolvedLeader = deptToLeaderMap.get(normalizeDeptKey(department)) || deptToLeaderMap.get(department);
+        resolvedLeader = idToLeaderMap.get(employeeId);
       }
       if (!resolvedLeader) {
         resolvedLeader = department || 'Sin Líder Asignado';
@@ -1418,14 +1575,22 @@ export function enrichMatrixWithLeaders<
     Departamento?: string;
     leader?: string;
     'Líder de área'?: string;
+    fecha?: string;
+    startDate?: string;
+    dateOnly?: string;
+    date?: string;
+    isoYear?: number;
+    weekNumber?: number;
+    isoWeek?: number;
   }[]
 ): (T & { leader: string; liderArea: string })[] {
   const idToLeaderMap = new Map<string, string>();
-  const deptToLeaderMap = new Map<string, string>();
+  const deptToLatestLeader = buildLatestDepartmentLeaderMap(baseTeRecords as any);
   const normDeptToCanonicalMap = new Map<string, string>();
   const idToDeptMap = new Map<string, string>();
 
   const KNOWN_CANONICAL_DEPTS: Record<string, string> = {
+    [normalizeDeptKey('PTA TRAT A RESIDUAL')]: 'PTA TRAT A RESIDUAL',
     [normalizeDeptKey('GENERADOR VAPOR(CALDE')]: 'GENERADOR VAPOR(CALDE',
     [normalizeDeptKey('MANTENIMIENTO TLAX PQ')]: 'MANTENIMIENTO TLAX PQ',
   };
@@ -1435,7 +1600,7 @@ export function enrichMatrixWithLeaders<
 
   if (baseTeRecords && Array.isArray(baseTeRecords)) {
     for (const b of baseTeRecords) {
-      const canonicalDept = ((b as any).department || (b as any).Departamento || '').trim();
+      const canonicalDept = canonicalizeDepartment(((b as any).department || (b as any).Departamento || '').trim());
       const id = ((b as any).employeeId || (b as any).ID || '').trim();
 
       if (canonicalDept) {
@@ -1449,19 +1614,8 @@ export function enrichMatrixWithLeaders<
       }
 
       const l = ((b as any).leader || (b as any)['Líder de área'] || '').trim();
-      if (l && l !== 'Sin Líder') {
-        if (id && !idToLeaderMap.has(id)) {
-          idToLeaderMap.set(id, l);
-        }
-        if (canonicalDept) {
-          const normKey = normalizeDeptKey(canonicalDept);
-          if (normKey && !deptToLeaderMap.has(normKey)) {
-            deptToLeaderMap.set(normKey, l);
-          }
-          if (!deptToLeaderMap.has(canonicalDept)) {
-            deptToLeaderMap.set(canonicalDept, l);
-          }
-        }
+      if (l && l !== 'Sin Líder' && id && !idToLeaderMap.has(id)) {
+        idToLeaderMap.set(id, l);
       }
     }
   }
@@ -1469,17 +1623,18 @@ export function enrichMatrixWithLeaders<
   return matrixRecords.map((rec) => {
     const empId = (rec.employeeId || '').trim();
     const rawDept = (rec.department || '').trim();
-    const normDept = normalizeDeptKey(rawDept);
     const resolvedDept =
-      normDeptToCanonicalMap.get(normDept) ||
+      canonicalizeDepartment(rawDept) ||
       idToDeptMap.get(empId) ||
-      rawDept ||
       'Sin Departamento';
 
+    const normDept = normalizeDeptKey(resolvedDept);
+
+    // Prioridad Absoluta: El Líder más reciente asignado al Departamento (área)
     const resolvedLeader =
+      deptToLatestLeader.get(normDept) ||
+      deptToLatestLeader.get(resolvedDept) ||
       idToLeaderMap.get(empId) ||
-      deptToLeaderMap.get(normDept) ||
-      deptToLeaderMap.get(rawDept) ||
       (rec.leader && rec.leader !== rawDept ? rec.leader : resolvedDept) ||
       'Sin Líder Asignado';
 

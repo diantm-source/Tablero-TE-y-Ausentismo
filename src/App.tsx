@@ -11,7 +11,13 @@ import {
 } from './types';
 import { AppStorage, DEFAULT_THRESHOLDS, PrecalculatedCatalogs } from './services/storage';
 import { computeKPIs, extractBaseTeLeaderCatalog } from './services/kpiEngine';
-import { enrichMatrixWithLeaders } from './services/overtimeParser';
+import {
+  enrichMatrixWithLeaders,
+  canonicalizeDepartment,
+  normalizeDeptKey,
+  buildLatestDepartmentLeaderMap,
+  updateRecordsWithLatestLeaders,
+} from './services/overtimeParser';
 import { syncRemoteAbsences, syncRemoteAll, syncRemoteMatriz } from './services/cloudSync';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -202,12 +208,34 @@ export default function App() {
         AppStorage.getPrecalculatedCatalogs(),
       ]);
 
-      setOvertimeRecords(ot);
-      setAttendanceRecords(att);
-      setAnnualOvertimeRecords(annualOt);
-      const enrichedMatriz = enrichMatrixWithLeaders(matriz, annualOt);
+      // 1. Unificar y determinar líderes más recientes por área
+      const allSourceRecords = [...annualOt, ...ot, ...matriz, ...absences];
+      const deptToLatestLeader = buildLatestDepartmentLeaderMap(allSourceRecords as any);
+
+      // Integrar líderes asignados en catálogo de líderes
+      for (const l of leaders) {
+        if (l.department && l.leaderName && l.leaderName.trim()) {
+          const cDept = canonicalizeDepartment(l.department);
+          deptToLatestLeader.set(normalizeDeptKey(cDept), l.leaderName.trim());
+          deptToLatestLeader.set(cDept, l.leaderName.trim());
+        }
+      }
+
+      // 2. Actualizar todas las colecciones con departamento canónico y su líder más reciente
+      const updatedAnnualOt = updateRecordsWithLatestLeaders(annualOt, deptToLatestLeader);
+      const updatedOt = updateRecordsWithLatestLeaders(ot, deptToLatestLeader);
+      const enrichedMatriz = updateRecordsWithLatestLeaders(
+        enrichMatrixWithLeaders(matriz, updatedAnnualOt),
+        deptToLatestLeader
+      );
+      const updatedAbsences = updateRecordsWithLatestLeaders(absences, deptToLatestLeader);
+      const updatedAtt = updateRecordsWithLatestLeaders(att, deptToLatestLeader);
+
+      setOvertimeRecords(updatedOt);
+      setAttendanceRecords(updatedAtt);
+      setAnnualOvertimeRecords(updatedAnnualOt);
       setWeeklyMatrixRecords(enrichedMatriz);
-      setAbsenceRecords(absences);
+      setAbsenceRecords(updatedAbsences);
       setDepartmentLeaders(leaders);
       setReasonsCatalog(reasons);
       setAuditIncidents(audit);
@@ -215,12 +243,24 @@ export default function App() {
       setThresholds(thresh);
       if (lastSync) setLastSyncTimestamp(lastSync);
 
-      const currentTotal = ot.length + att.length + annualOt.length + matriz.length + absences.length;
+      const currentTotal =
+        updatedOt.length +
+        updatedAtt.length +
+        updatedAnnualOt.length +
+        enrichedMatriz.length +
+        updatedAbsences.length;
+
       if (storedCatalogs && storedCatalogs.recordsCount === currentTotal && currentTotal > 0) {
         setCachedCatalogs(storedCatalogs);
       } else if (currentTotal > 0) {
         // Calcular de forma diferida y persistir en IndexedDB
-        const calculated = buildPrecalculatedCatalogs(ot, att, annualOt, matriz, absences);
+        const calculated = buildPrecalculatedCatalogs(
+          updatedOt,
+          updatedAtt,
+          updatedAnnualOt,
+          enrichedMatriz,
+          updatedAbsences
+        );
         setCachedCatalogs(calculated);
         AppStorage.savePrecalculatedCatalogs(calculated).catch((err) =>
           console.warn('Error al guardar catálogos precalculados:', err)

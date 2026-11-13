@@ -21,6 +21,7 @@ import {
   OvertimeRecordSchema,
   AttendanceRecordSchema,
 } from '../schemas';
+import { canonicalizeDepartment } from './overtimeParser';
 import { parseCSVToOvertimeRecords } from './cloudSync';
 
 export interface ParseResult<T> {
@@ -331,16 +332,18 @@ export function parseOvertimeWorksheet(
         'razón social',
       ]) || 'Polaquimia'
     ).trim();
-    const rawDept = String(
-      getColumnValue(row, [
-        'departamento',
-        'area',
-        'área',
-        'seccion',
-        'sección',
-        'centro de costos',
-      ]) || 'Sin Departamento'
-    ).trim();
+    const rawDept = canonicalizeDepartment(
+      String(
+        getColumnValue(row, [
+          'departamento',
+          'area',
+          'área',
+          'seccion',
+          'sección',
+          'centro de costos',
+        ]) || 'Sin Departamento'
+      ).trim()
+    );
     const rawLeader = String(
       getColumnValue(row, [
         'lider',
@@ -770,9 +773,11 @@ export function parseAttendanceWorksheet(
     const rawNickname = String(
       getColumnValue(row, ['apodo', 'alias', 'tipo']) || ''
     ).trim();
-    const rawDept = String(
-      getColumnValue(row, ['departamento', 'area']) || 'Sin Departamento'
-    ).trim();
+    const rawDept = canonicalizeDepartment(
+      String(
+        getColumnValue(row, ['departamento', 'area']) || 'Sin Departamento'
+      ).trim()
+    );
     const rawLeader = String(
       getColumnValue(row, ['lider', 'supervisor', 'jefe']) || ''
     ).trim();

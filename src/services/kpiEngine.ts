@@ -5,9 +5,19 @@ import {
   ThresholdConfig,
 } from '../types';
 import { determineSyndicatedStatus, getISOWeekDateRange } from './businessRules';
-import { normalizeDeptKey } from './overtimeParser';
+import {
+  canonicalizeDepartment,
+  normalizeDeptKey,
+  buildLatestDepartmentLeaderMap,
+  updateRecordsWithLatestLeaders,
+} from './overtimeParser';
 
-export { normalizeDeptKey };
+export {
+  canonicalizeDepartment,
+  normalizeDeptKey,
+  buildLatestDepartmentLeaderMap,
+  updateRecordsWithLatestLeaders,
+};
 
 export interface DepartmentMetric {
   department: string;
@@ -103,16 +113,28 @@ export interface BaseTeLeaderCatalog {
 
 /**
  * Extrae y normaliza el catálogo relacional de Líder de Área y Departamentos
- * única y exclusivamente desde los registros de Base TE.
+ * única y exclusivamente desde los registros de Base TE, garantizando que si
+ * un área cambió de líder, quede asociada única y exclusivamente a su líder más reciente.
  */
 export function extractBaseTeLeaderCatalog(
-  records: { department?: string; leader?: string; 'Líder de área'?: string; Departamento?: string }[]
+  records: {
+    department?: string;
+    leader?: string;
+    'Líder de área'?: string;
+    Departamento?: string;
+    fecha?: string;
+    startDate?: string;
+    dateOnly?: string;
+    date?: string;
+    isoYear?: number;
+    weekNumber?: number;
+    isoWeek?: number;
+  }[]
 ): BaseTeLeaderCatalog {
   const leaderToDeptMap = new Map<string, Set<string>>();
   const deptToLeaderMap = new Map<string, Set<string>>();
   const allDepts = new Set<string>();
   const allLeaders = new Set<string>();
-  const normDeptToCanonical = new Map<string, string>();
 
   if (!records || !Array.isArray(records)) {
     return {
@@ -123,44 +145,34 @@ export function extractBaseTeLeaderCatalog(
     };
   }
 
+  // 1. Identificar el líder más reciente / actualizado para cada área
+  const deptToLatestLeader = buildLatestDepartmentLeaderMap(records);
+
+  // 2. Mapear cada departamento canónico a su líder más actualizado
   for (const r of records) {
-    const rawDept = (r.department || (r as unknown as Record<string, string>)['Departamento'] || '').trim();
-    const rawLeader = (r.leader || (r as unknown as Record<string, string>)['Líder de área'] || '').trim();
+    const rawDept = (r.department || (r as any)['Departamento'] || '').trim();
+    if (!rawDept) continue;
 
-    if (!rawDept && !rawLeader) continue;
+    const canonicalDept = canonicalizeDepartment(rawDept);
+    allDepts.add(canonicalDept);
 
-    // Normalización inteligente: unificar variantes de departamento preservando el nombre canónico de Base TE
-    let normDept = rawDept;
-    if (rawDept) {
-      const deptKey = normalizeDeptKey(rawDept);
-      if (!normDeptToCanonical.has(deptKey)) {
-        normDeptToCanonical.set(deptKey, rawDept);
+    const deptKey = normalizeDeptKey(canonicalDept);
+    const latestLeader = deptToLatestLeader.get(deptKey) || deptToLatestLeader.get(canonicalDept);
+
+    if (latestLeader) {
+      allLeaders.add(latestLeader);
+
+      if (!leaderToDeptMap.has(latestLeader)) {
+        leaderToDeptMap.set(latestLeader, new Set<string>());
       }
-      normDept = normDeptToCanonical.get(deptKey)!;
-      allDepts.add(normDept);
-    }
+      leaderToDeptMap.get(latestLeader)!.add(canonicalDept);
 
-    const normLeader = rawLeader;
-
-    if (
-      normLeader &&
-      normLeader !== 'Sin Líder Asignado' &&
-      normLeader !== 'Sin Líder' &&
-      normLeader !== '-' &&
-      normLeader !== 'Sin Asignar'
-    ) {
-      allLeaders.add(normLeader);
-      if (normDept) {
-        if (!leaderToDeptMap.has(normLeader)) {
-          leaderToDeptMap.set(normLeader, new Set<string>());
-        }
-        leaderToDeptMap.get(normLeader)!.add(normDept);
-
-        if (!deptToLeaderMap.has(normDept)) {
-          deptToLeaderMap.set(normDept, new Set<string>());
-        }
-        deptToLeaderMap.get(normDept)!.add(normLeader);
+      if (!deptToLeaderMap.has(canonicalDept)) {
+        deptToLeaderMap.set(canonicalDept, new Set<string>());
       }
+      // El departamento queda asignado exclusivamente a su líder más reciente
+      deptToLeaderMap.get(canonicalDept)!.clear();
+      deptToLeaderMap.get(canonicalDept)!.add(latestLeader);
     }
   }
 
@@ -451,8 +463,9 @@ export function computeKPIs(
     }
 
     // Dept map
-    let targetDeptKey = rec.department;
-    const recDeptNorm = normalizeDeptKey(rec.department);
+    const canonicalDept = canonicalizeDepartment(rec.department);
+    let targetDeptKey = canonicalDept;
+    const recDeptNorm = normalizeDeptKey(canonicalDept);
     if (!deptHoursMap.has(targetDeptKey) && recDeptNorm) {
       for (const existingKey of deptHoursMap.keys()) {
         if (normalizeDeptKey(existingKey) === recDeptNorm) {
@@ -473,6 +486,9 @@ export function computeKPIs(
     curDept.approved += rec.approvedHours;
     curDept.pending += rec.status === 'PENDIENTE' ? rec.requestedHours : 0;
     curDept.count++;
+    if (rec.leader && rec.leader !== 'Sin Líder Asignado' && rec.leader !== 'Sin Líder') {
+      curDept.leader = rec.leader;
+    }
     deptHoursMap.set(targetDeptKey, curDept);
 
     // Daily metric
@@ -533,8 +549,9 @@ export function computeKPIs(
         nonSynEligibleShifts++;
       }
 
-      let targetAttDeptKey = rec.department;
-      const attDeptNorm = normalizeDeptKey(rec.department);
+      const canonicalAttDept = canonicalizeDepartment(rec.department);
+      let targetAttDeptKey = canonicalAttDept;
+      const attDeptNorm = normalizeDeptKey(canonicalAttDept);
       if (!deptAttendanceMap.has(targetAttDeptKey) && attDeptNorm) {
         for (const existingKey of deptAttendanceMap.keys()) {
           if (normalizeDeptKey(existingKey) === attDeptNorm) {
@@ -550,6 +567,9 @@ export function computeKPIs(
         leader: rec.leader,
       };
       dAtt.eligible++;
+      if (rec.leader && rec.leader !== 'Sin Líder Asignado' && rec.leader !== 'Sin Líder') {
+        dAtt.leader = rec.leader;
+      }
 
       if (rec.absenceStatus === 'AUSENCIA_CONFIRMADA' || rec.absenceStatus === 'AUSENCIA_PROBABLE') {
         totalAbsences++;
@@ -590,7 +610,7 @@ export function computeKPIs(
         justifiedExceptionsCount++;
       }
 
-      deptAttendanceMap.set(rec.department, dAtt);
+      deptAttendanceMap.set(targetAttDeptKey, dAtt);
 
       // Track week eligible shifts
       const weekKey = `${rec.isoYear}-W${String(rec.isoWeek).padStart(2, '0')}`;
