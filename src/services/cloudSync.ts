@@ -1284,8 +1284,8 @@ export async function fetchRemoteCSVText(
 ): Promise<{ csvText: string; targetUrl: string }> {
   const targetUrl = getEffectiveCloudSyncUrl(url);
 
-  if (!targetUrl) {
-    throw new Error('No se ha configurado ninguna URL remota para la sincronización.');
+  if (!targetUrl || (!targetUrl.startsWith('https://') && !targetUrl.startsWith('http://'))) {
+    throw new Error('No se ha configurado ninguna URL remota válida (HTTP/HTTPS) para la sincronización.');
   }
 
   let response: Response;
@@ -1576,6 +1576,9 @@ export async function fetchRemoteMatrizWorkbook(
   url?: string
 ): Promise<{ workbook: XLSX.WorkBook; targetUrl: string }> {
   const targetUrl = getEffectiveMatrizCloudSyncUrl(url);
+  if (!targetUrl || (!targetUrl.startsWith('https://') && !targetUrl.startsWith('http://'))) {
+    throw new Error('No se ha configurado ninguna URL remota válida (HTTP/HTTPS) para la Matriz Semanal.');
+  }
   const response = await fetch(targetUrl);
   if (!response.ok) {
     throw new Error(
