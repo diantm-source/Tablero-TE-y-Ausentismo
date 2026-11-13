@@ -83,9 +83,13 @@ export const Header: React.FC<HeaderProps> = ({
             <i className="bi bi-list text-xl leading-none"></i>
           </button>
 
-          {/* Brand Icon */}
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm ring-1 ring-blue-400/30 shrink-0">
-            <i className="bi bi-clock-history text-lg sm:text-xl"></i>
+          {/* Brand Logo */}
+          <div className="h-8 sm:h-10 flex items-center shrink-0">
+            <img
+              src={`${import.meta.env.BASE_URL}logo.png`}
+              alt="Logo"
+              className="h-8 sm:h-10 w-auto max-w-[130px] object-contain rounded-lg bg-white/95 p-1 shadow-sm border border-slate-700/50"
+            />
           </div>
 
           {/* Title & Metadata */}
