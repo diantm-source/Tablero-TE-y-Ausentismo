@@ -1,13 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
+  AbsenceRecord,
+  AnnualOvertimeRecord,
   DepartmentLeader,
   GlobalFilterState,
   NavigationSection,
   ReasonCatalogItem,
   ThresholdConfig,
+  WeeklyMatrixRecord,
 } from './types';
 import { AppStorage, DEFAULT_THRESHOLDS } from './services/storage';
 import { computeKPIs } from './services/kpiEngine';
+import { enrichMatrixWithLeaders } from './services/overtimeParser';
+import { syncRemoteAbsences, syncRemoteAll, syncRemoteMatriz } from './services/cloudSync';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { GlobalFilters } from './components/GlobalFilters';
@@ -42,12 +47,17 @@ export default function App() {
   // Core Data State
   const [overtimeRecords, setOvertimeRecords] = useState<import('./types').OvertimeRecord[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<import('./types').AttendanceRecord[]>([]);
+  const [annualOvertimeRecords, setAnnualOvertimeRecords] = useState<AnnualOvertimeRecord[]>([]);
+  const [weeklyMatrixRecords, setWeeklyMatrixRecords] = useState<WeeklyMatrixRecord[]>([]);
+  const [absenceRecords, setAbsenceRecords] = useState<AbsenceRecord[]>([]);
   const [departmentLeaders, setDepartmentLeaders] = useState<DepartmentLeader[]>([]);
   const [reasonsCatalog, setReasonsCatalog] = useState<ReasonCatalogItem[]>([]);
   const [auditIncidents, setAuditIncidents] = useState<import('./types').AuditIncident[]>([]);
   const [importHistory, setImportHistory] = useState<import('./types').ImportHistoryItem[]>([]);
   const [thresholds, setThresholds] = useState<ThresholdConfig>(DEFAULT_THRESHOLDS);
   const [loading, setLoading] = useState(true);
+  const [lastSyncTimestamp, setLastSyncTimestamp] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Global Filters State
   const [filters, setFilters] = useState<GlobalFilterState>(DEFAULT_FILTERS);
@@ -55,22 +65,31 @@ export default function App() {
   // Sync state helper
   const reloadData = async () => {
     try {
-      const [ot, att, leaders, reasons, audit, history, thresh] = await Promise.all([
+      const [ot, att, annualOt, matriz, absences, leaders, reasons, audit, history, thresh, lastSync] = await Promise.all([
         AppStorage.getOvertimeRecords(),
         AppStorage.getAttendanceRecords(),
+        AppStorage.getAnnualOvertimeRecords(),
+        AppStorage.getWeeklyMatrixRecords(),
+        AppStorage.getAbsenceRecords(),
         AppStorage.getDepartmentLeaders(),
         AppStorage.getReasonsCatalog(),
         AppStorage.getAuditIncidents(),
         AppStorage.getImportHistory(),
         AppStorage.getThresholds(),
+        AppStorage.getLastSyncTimestamp(),
       ]);
       setOvertimeRecords(ot);
       setAttendanceRecords(att);
+      setAnnualOvertimeRecords(annualOt);
+      const enrichedMatriz = enrichMatrixWithLeaders(matriz, annualOt);
+      setWeeklyMatrixRecords(enrichedMatriz);
+      setAbsenceRecords(absences);
       setDepartmentLeaders(leaders);
       setReasonsCatalog(reasons);
       setAuditIncidents(audit);
       setImportHistory(history);
       setThresholds(thresh);
+      if (lastSync) setLastSyncTimestamp(lastSync);
     } catch (err) {
       console.error('Error al cargar datos desde IndexedDB:', err);
     } finally {
@@ -78,9 +97,71 @@ export default function App() {
     }
   };
 
+  const handleSyncCloud = async () => {
+    setIsSyncing(true);
+    try {
+      const [otResult, absResult, matrizResult] = await Promise.allSettled([
+        syncRemoteAll(undefined, reasonsCatalog),
+        syncRemoteAbsences(),
+        syncRemoteMatriz(),
+      ]);
+
+      if (matrizResult.status === 'fulfilled') {
+        setLastSyncTimestamp(matrizResult.value.syncTime);
+      } else {
+        console.warn('Error al sincronizar Matriz Semanal desde Sheets:', matrizResult.reason);
+      }
+
+      if (otResult.status === 'fulfilled') {
+        setLastSyncTimestamp(otResult.value.syncTime);
+      } else {
+        console.warn('Error al sincronizar Tiempo Extra desde Sheets:', otResult.reason);
+      }
+
+      if (absResult.status === 'fulfilled') {
+        setLastSyncTimestamp(absResult.value.syncTime);
+      } else {
+        console.warn('Error al sincronizar Ausentismo desde Sheets:', absResult.reason);
+      }
+
+      if (otResult.status === 'rejected' && absResult.status === 'rejected' && matrizResult.status === 'rejected') {
+        throw (matrizResult.reason || otResult.reason);
+      }
+
+      await reloadData();
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   useEffect(() => {
     const initApp = async () => {
       await AppStorage.init();
+      // Try initial remote sync (Matriz Semanal + Tiempo Extra + Ausentismo); fallback seamlessly to local IndexedDB
+      const [matrizResult, otResult, absResult] = await Promise.allSettled([
+        syncRemoteMatriz(),
+        syncRemoteAll(),
+        syncRemoteAbsences(),
+      ]);
+
+      if (matrizResult.status === 'fulfilled') {
+        setLastSyncTimestamp(matrizResult.value.syncTime);
+      } else {
+        console.warn('Sincronización inicial remota de Matriz en espera:', matrizResult.reason);
+      }
+
+      if (otResult.status === 'fulfilled') {
+        setLastSyncTimestamp(otResult.value.syncTime);
+      } else {
+        console.warn('Sincronización inicial remota de TE en espera:', otResult.reason);
+      }
+
+      if (absResult.status === 'fulfilled') {
+        setLastSyncTimestamp(absResult.value.syncTime);
+      } else {
+        console.warn('Sincronización inicial remota de Ausentismo en espera:', absResult.reason);
+      }
+
       await reloadData();
     };
     initApp();
@@ -101,16 +182,22 @@ export default function App() {
     const set = new Set<string>();
     overtimeRecords.forEach((r) => r.department && set.add(r.department));
     attendanceRecords.forEach((r) => r.department && set.add(r.department));
+    annualOvertimeRecords.forEach((r) => r.department && set.add(r.department));
+    weeklyMatrixRecords.forEach((r) => r.department && set.add(r.department));
+    absenceRecords.forEach((r) => r.department && set.add(r.department));
     return Array.from(set).sort();
-  }, [overtimeRecords, attendanceRecords]);
+  }, [overtimeRecords, attendanceRecords, annualOvertimeRecords, weeklyMatrixRecords, absenceRecords]);
 
   const availableLeaders = useMemo(() => {
     const set = new Set<string>();
     overtimeRecords.forEach((r) => r.leader && set.add(r.leader));
     attendanceRecords.forEach((r) => r.leader && set.add(r.leader));
+    annualOvertimeRecords.forEach((r) => r.leader && set.add(r.leader));
+    weeklyMatrixRecords.forEach((r) => r.leader && set.add(r.leader));
+    absenceRecords.forEach((r) => r.leader && set.add(r.leader));
     departmentLeaders.forEach((l) => l.leaderName && set.add(l.leaderName));
     return Array.from(set).sort();
-  }, [overtimeRecords, attendanceRecords, departmentLeaders]);
+  }, [overtimeRecords, attendanceRecords, annualOvertimeRecords, weeklyMatrixRecords, absenceRecords, departmentLeaders]);
 
   const availableWeeks = useMemo(() => {
     const set = new Set<string>();
@@ -120,15 +207,47 @@ export default function App() {
     attendanceRecords.forEach((r) => {
       set.add(`${r.isoYear}-W${String(r.isoWeek).padStart(2, '0')}`);
     });
+    annualOvertimeRecords.forEach((r) => {
+      if (r.isoYear && r.weekNumber) {
+        set.add(`${r.isoYear}-W${String(r.weekNumber).padStart(2, '0')}`);
+      }
+    });
+    weeklyMatrixRecords.forEach((r) => {
+      if (r.isoYear && r.weekNumber) {
+        set.add(`${r.isoYear}-W${String(r.weekNumber).padStart(2, '0')}`);
+      }
+    });
+    absenceRecords.forEach((r) => {
+      if (r.isoYear && r.weekNumber) {
+        set.add(`${r.isoYear}-W${String(r.weekNumber).padStart(2, '0')}`);
+      }
+    });
     return Array.from(set).sort().reverse();
-  }, [overtimeRecords, attendanceRecords]);
+  }, [overtimeRecords, attendanceRecords, annualOvertimeRecords, weeklyMatrixRecords, absenceRecords]);
 
   const availableMonths = useMemo(() => {
     const set = new Set<string>();
     overtimeRecords.forEach((r) => r.dateOnly && set.add(r.dateOnly.slice(0, 7)));
     attendanceRecords.forEach((r) => r.date && set.add(r.date.slice(0, 7)));
+    annualOvertimeRecords.forEach((r) => {
+      if (r.fecha && /^\d{4}-\d{2}/.test(r.fecha)) {
+        set.add(r.fecha.slice(0, 7));
+      } else if (r.isoYear && r.monthNumber) {
+        set.add(`${r.isoYear}-${String(r.monthNumber).padStart(2, '0')}`);
+      }
+    });
+    weeklyMatrixRecords.forEach((r) => {
+      if (r.isoYear && r.monthNumber) {
+        set.add(`${r.isoYear}-${String(r.monthNumber).padStart(2, '0')}`);
+      }
+    });
+    absenceRecords.forEach((r) => {
+      if (r.startDate && /^\d{4}-\d{2}/.test(r.startDate)) {
+        set.add(r.startDate.slice(0, 7));
+      }
+    });
     return Array.from(set).sort().reverse();
-  }, [overtimeRecords, attendanceRecords]);
+  }, [overtimeRecords, attendanceRecords, annualOvertimeRecords, weeklyMatrixRecords, absenceRecords]);
 
   // Compute KPIs with live filters & thresholds
   const kpis = useMemo(() => {
@@ -208,6 +327,9 @@ export default function App() {
           att: attendanceRecords.length,
         }}
         onResetSeedData={handleResetSeedData}
+        onSyncCloud={handleSyncCloud}
+        lastSyncTimestamp={lastSyncTimestamp}
+        isSyncing={isSyncing}
       />
 
       {/* Main Container */}
@@ -261,11 +383,24 @@ export default function App() {
               kpis={kpis}
               allOvertime={overtimeRecords}
               allAttendance={attendanceRecords}
+              annualOvertime={annualOvertimeRecords}
+              matrixRecords={weeklyMatrixRecords}
+              filters={filters}
+              isSyncing={isSyncing}
+              onSyncCloud={handleSyncCloud}
             />
           )}
 
           {currentSection === 'attendance' && (
-            <AttendanceAnalysisView kpis={kpis} allAttendance={attendanceRecords} />
+            <AttendanceAnalysisView
+              kpis={kpis}
+              allAttendance={attendanceRecords}
+              allOvertime={overtimeRecords}
+              absenceRecords={absenceRecords}
+              filters={filters}
+              isSyncing={isSyncing}
+              onSyncCloud={handleSyncCloud}
+            />
           )}
 
           {currentSection === 'departments' && (

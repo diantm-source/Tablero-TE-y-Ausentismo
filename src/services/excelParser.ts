@@ -21,6 +21,7 @@ import {
   OvertimeRecordSchema,
   AttendanceRecordSchema,
 } from '../schemas';
+import { parseCSVToOvertimeRecords } from './cloudSync';
 
 export interface ParseResult<T> {
   fileType: 'overtime' | 'attendance' | 'reasons_catalog' | 'unknown';
@@ -673,6 +674,8 @@ export function parseOvertimeWorksheet(
       });
     }
 
+    const isSyndicated = determineSyndicatedStatus(rawCompany, '', rawDept);
+
     const recordCandidate: OvertimeRecord = {
       id: businessKey,
       employeeId: rawEmpId || `EMP_${idx + 1}`,
@@ -682,6 +685,7 @@ export function parseOvertimeWorksheet(
       company: rawCompany,
       department: rawDept,
       leader: rawLeader || 'Sin Líder Asignado',
+      isSyndicated,
       startDate: startDate || formatDateISO(new Date()),
       startTime: startTime || '00:00:00',
       endDate: endDate || startDate || formatDateISO(new Date()),
@@ -913,12 +917,37 @@ export function parseAttendanceWorksheet(
 }
 
 /**
- * Main auto-detect and parser entry point for uploaded Excel files with ExcelJS
+ * Main auto-detect and parser entry point for uploaded Excel or CSV files
  */
 export async function parseUploadedExcelFile(
   file: File,
   reasonsCatalog: ReasonCatalogItem[]
 ): Promise<ParseResult<OvertimeRecord | AttendanceRecord>> {
+  if (file.name.toLowerCase().endsWith('.csv')) {
+    const csvText = await file.text();
+    const records = parseCSVToOvertimeRecords(csvText, file.name, reasonsCatalog);
+    const minDate = records.length > 0 ? records[0].startDate : '';
+    const maxDate = records.length > 0 ? records[records.length - 1].endDate : '';
+    return {
+      fileType: 'overtime',
+      detectedHeaderRow: 3,
+      sheetName: file.name,
+      totalRowsRead: records.length,
+      records,
+      incidents: [],
+      dateRange: minDate && maxDate ? { start: minDate, end: maxDate } : null,
+      columnsFound: [
+        'ID del Empleado',
+        'Nombre',
+        'Apellido',
+        'Departamento',
+        'Hora de Inicio de T.E.',
+        'Hora de Fin de T.E.',
+        'Estado de aprobación',
+      ],
+    };
+  }
+
   const arrayBuffer = await file.arrayBuffer();
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(arrayBuffer);

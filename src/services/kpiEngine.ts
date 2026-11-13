@@ -4,7 +4,7 @@ import {
   OvertimeRecord,
   ThresholdConfig,
 } from '../types';
-import { getISOWeekDateRange } from './businessRules';
+import { determineSyndicatedStatus, getISOWeekDateRange } from './businessRules';
 
 export interface DepartmentMetric {
   department: string;
@@ -126,7 +126,23 @@ export function applyFilters(
     return true; // "Todas las empresas": incluye Polaquimia, MLBM, Barteleu, Polatecnia, Externos, Becarios
   };
 
-  // 2. Filter Overtime
+  // 2. Index attendance syndication status by employeeId for cross-resolution
+  const attendanceSyndicatedMap = new Map<string, boolean>();
+  for (const att of attendanceList) {
+    if (att.employeeId && att.isSyndicated !== undefined) {
+      attendanceSyndicatedMap.set(att.employeeId, att.isSyndicated);
+    }
+  }
+
+  const isOvertimeSyndicated = (rec: OvertimeRecord): boolean => {
+    if (rec.isSyndicated !== undefined) return rec.isSyndicated;
+    if (rec.employeeId && attendanceSyndicatedMap.has(rec.employeeId)) {
+      return attendanceSyndicatedMap.get(rec.employeeId)!;
+    }
+    return determineSyndicatedStatus(rec.company || 'Polaquimia', '', rec.department);
+  };
+
+  // 3. Filter Overtime
   const filteredOvertime = overtimeList.filter((rec) => {
     if (!passesOvertimeCompany(rec.company)) return false;
 
@@ -141,6 +157,9 @@ export function applyFilters(
     if (filters.overtimeStatus !== 'ALL') {
       if (rec.status !== filters.overtimeStatus) return false;
     }
+
+    if (filters.collaboratorType === 'SINDICALIZADO' && !isOvertimeSyndicated(rec)) return false;
+    if (filters.collaboratorType === 'NO_SINDICALIZADO' && isOvertimeSyndicated(rec)) return false;
 
     if (filters.isoWeek && filters.isoWeek !== 'ALL') {
       const recWeekKey = `${rec.isoYear}-W${String(rec.isoWeek).padStart(2, '0')}`;
@@ -274,7 +293,18 @@ export function computeKPIs(
   };
 
   filteredOvertime.forEach((rec) => {
-    otEmployeesSet.add(rec.employeeId);
+    // Contar exclusivamente colaboradores con horasTotales > 0 (TE normal o prolongación)
+    const recHours =
+      rec.horasTotales !== undefined
+        ? rec.horasTotales
+        : ((rec.horasNormales || 0) + (rec.horasProlongacion || 0) ||
+           rec.approvedHours ||
+           rec.requestedHours ||
+           0);
+
+    if (recHours > 0 && rec.employeeId) {
+      otEmployeesSet.add(rec.employeeId);
+    }
     totalRequestedHours += rec.requestedHours;
 
     if (rec.status === 'APROBADO') {

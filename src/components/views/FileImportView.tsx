@@ -82,8 +82,10 @@ export const FileImportView: React.FC<FileImportViewProps> = ({
   const [staged, setStaged] = useState<StagedImport | null>(null);
 
   const handleProcessFile = async (file: File) => {
-    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-      setErrorMessage('Por favor seleccione un archivo de Excel válido (.xlsx o .xls).');
+    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+    const isCsv = file.name.toLowerCase().endsWith('.csv');
+    if (!isExcel && !isCsv) {
+      setErrorMessage('Por favor seleccione un archivo válido (.xlsx, .xls o .csv).');
       return;
     }
 
@@ -463,7 +465,7 @@ export const FileImportView: React.FC<FileImportViewProps> = ({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".xlsx, .xls"
+        accept=".xlsx, .xls, .csv"
         className="hidden"
         onChange={(e) => {
           if (e.target.files && e.target.files[0]) {
@@ -507,7 +509,7 @@ export const FileImportView: React.FC<FileImportViewProps> = ({
             {processing ? 'Analizando estructura BioTime...' : 'Cargar reporte de "Total de Asistencia" o "Tiempo Extra"'}
           </h3>
           <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto mb-4">
-            Soporta archivos Excel (.xlsx) exportados de BioTime. Las filas 1 y 2 institucionales se omiten automáticamente y los datos se extraen de la fila 3.
+            Soporta archivos Excel (.xlsx, .xls) y CSV (.csv) exportados de BioTime o Google Sheets. Los datos se extraen respetando los encabezados correspondientes.
           </p>
 
           {/* Primary Action Button */}

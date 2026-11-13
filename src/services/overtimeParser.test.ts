@@ -7,6 +7,10 @@ import {
   evaluateTrafficLight,
   aggregateOvertimeData,
   NormalizedOvertimeRow,
+  hasCellFillColor,
+  parseWeeklyMatrixWorkbook,
+  enrichMatrixWithLeaders,
+  getTurnoBadgeClass,
 } from './overtimeParser';
 
 describe('Overtime Parser & Traffic Light Logic', () => {
@@ -420,6 +424,7 @@ describe('Overtime Parser & Traffic Light Logic', () => {
           horaFin: '2026-10-14 20:30:00',
           duracionHoras: 6,
           estado: 'Aprobado',
+          isSyndicated: true,
           isoYear: 2026,
           isoWeek: 42,
           semanaIso: '2026-W42',
@@ -447,6 +452,232 @@ describe('Overtime Parser & Traffic Light Logic', () => {
       expect(resBase.kpis.verdeCount).toBe(1);
     });
   });
+
+  describe('9. hasCellFillColor & parseWeeklyMatrixWorkbook (Multi-hoja con detección de color)', () => {
+    describe('hasCellFillColor', () => {
+      it('returns false for undefined, null, or empty cell/style', () => {
+        expect(hasCellFillColor(null)).toBe(false);
+        expect(hasCellFillColor(undefined)).toBe(false);
+        expect(hasCellFillColor({})).toBe(false);
+        expect(hasCellFillColor({ s: {} })).toBe(false);
+      });
+
+      it('returns false when patternType is none and no colored fill', () => {
+        expect(hasCellFillColor({ s: { patternType: 'none' } })).toBe(false);
+      });
+
+      it('returns false when fgColor or bgColor is white (FFFFFF)', () => {
+        expect(hasCellFillColor({ s: { fgColor: { rgb: 'FFFFFF' } } })).toBe(false);
+        expect(hasCellFillColor({ s: { bgColor: { rgb: 'FFFFFFFF' } } })).toBe(false);
+      });
+
+      it('returns true when patternType is solid', () => {
+        expect(hasCellFillColor({ s: { patternType: 'solid' } })).toBe(true);
+      });
+
+      it('returns true when fgColor.rgb is a non-white color (e.g. gray AEABAB or yellow)', () => {
+        expect(hasCellFillColor({ s: { fgColor: { rgb: 'AEABAB' } } })).toBe(true);
+        expect(hasCellFillColor({ s: { fgColor: { rgb: 'FFFF00' } } })).toBe(true);
+      });
+
+      it('returns true when bgColor.rgb is non-white', () => {
+        expect(hasCellFillColor({ s: { bgColor: { rgb: 'D0CECE' } } })).toBe(true);
+      });
+
+      it('returns true when theme color is specified', () => {
+        expect(hasCellFillColor({ s: { fgColor: { theme: 4 } } })).toBe(true);
+      });
+    });
+
+    describe('parseWeeklyMatrixWorkbook', () => {
+      it('skips auxiliary sheets like Hoja1 or sheets without valid matrix headers', () => {
+        const wb = XLSX.utils.book_new();
+        const wsAux = XLSX.utils.aoa_to_sheet([['Notas internas'], ['Sin datos']]);
+        XLSX.utils.book_append_sheet(wb, wsAux, 'Hoja1');
+
+        const result = parseWeeklyMatrixWorkbook(wb);
+        expect(result.stats.sheetCount).toBe(0);
+        expect(result.records).toHaveLength(0);
+      });
+
+      it('parses valid sheet, filters Activo === 1, and splits Horas Normales vs Prolongación by color and shift rules', () => {
+        const wb = XLSX.utils.book_new();
+
+        // Build a mock matrix sheet
+        // Row 0: Title with date
+        // Row 1: Subtitle
+        // Row 2: Headers (Col A: DEPTO, B: ACTIVO, C: CLAVE, D: NOMBRE, E: SAP, F: ign, G: ign, H: *, I..K: LUNES (38,39,40), L..N: MARTES, etc.)
+        // Row 3: Turno row: 38, 39, 40 ...
+        // Row 4: Employee 1 (Activo = 1)
+        // Row 5: Employee 2 (Activo = 0 -> should be skipped)
+        // Row 2: Headers (Col A: DEPTO, B: ACTIVO, C: CLAVE, D: NOMBRE, E: SAP, F: ign, G: ign, H: *, I..AC: 7 days * 3 shifts = 21 cols, AD: TOTAL)
+        const headerRow = ['DEPTO', 'ACTIVO', 'CLAVE', 'NOMBRE', 'ID SAP', 'NV1', 'NV2', '*'];
+        const days = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO', 'DOMINGO'];
+        for (const d of days) {
+          headerRow.push(d, '', '');
+        }
+        headerRow.push('TOTAL'); // Col AD (index 29)
+
+        const shiftRow = ['', '', '', '', '', '', '', ''];
+        for (let i = 0; i < 7; i++) {
+          shiftRow.push('38', '39', '40');
+        }
+        shiftRow.push('');
+
+        const rowEmp1: any[] = ['PRODUCCION', 1, '5001', 'JUAN PEREZ', 'SAP-101', '', '', ''];
+        // Lunes: T1=0.5 (no color), T2=0.5 (color), T3=1.0 (no color)
+        rowEmp1.push(0.5, 0.5, 1.0);
+        // Martes: T1=2.0 (no color), T2='', T3=1.0 (color)
+        rowEmp1.push(2.0, '', 1.0);
+        // Miércoles to Domingo (5 days * 3 shifts = 15 empty cols)
+        for (let i = 0; i < 15; i++) {
+          rowEmp1.push('');
+        }
+        rowEmp1.push(5.0); // Col AD: Total = 5.0
+
+        const rowEmp2: any[] = ['CALIDAD', 0, '5002', 'PEDRO GOMEZ', 'SAP-102', '', '', ''];
+        for (let i = 0; i < 21; i++) {
+          rowEmp2.push(1.0);
+        }
+        rowEmp2.push(21.0);
+
+        const aoa: any[][] = [
+          ['GRUPO INDUSTRIAL', 'DEL 26 AL 1 octubre DEL 2026'],
+          ['MATRIZ SEMANAL DE TIEMPO EXTRA'],
+          headerRow,
+          shiftRow,
+          rowEmp1,
+          rowEmp2,
+        ];
+
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+        // Add cell styles:
+        // Col 9 (Lunes T2): colored fill
+        ws[XLSX.utils.encode_cell({ r: 4, c: 9 })].s = {
+          patternType: 'solid',
+          fgColor: { rgb: 'AEABAB' },
+        };
+        // Col 13 (Martes T3): colored fill
+        ws[XLSX.utils.encode_cell({ r: 4, c: 13 })].s = {
+          patternType: 'solid',
+          fgColor: { rgb: 'D0CECE' },
+        };
+
+        XLSX.utils.book_append_sheet(wb, ws, '26-01');
+
+        const result = parseWeeklyMatrixWorkbook(wb);
+        expect(result.stats.sheetCount).toBe(1);
+        expect(result.stats.activeEmployees).toBe(1);
+        expect(result.records).toHaveLength(1);
+
+        const rec = result.records[0];
+        expect(rec.employeeId).toBe('5001');
+        expect(rec.employeeName).toBe('JUAN PEREZ');
+        expect(rec.department).toBe('PRODUCCION');
+        expect(rec.sapId).toBe('SAP-101');
+        expect(rec.week).toBe('S44');
+        expect(rec.monthName).toBe('Octubre');
+        expect(rec.monthNumber).toBe(10);
+
+        // Verify breakdown:
+        // Prolongación:
+        // - Lunes T1: 0.5 (no color) = 0.5
+        // - Lunes T3: 1.0 (no color) = 1.0
+        // Total Prolongación = 1.5
+        expect(rec.horasProlongacion).toBe(1.5);
+
+        // Horas Normales:
+        // - Lunes T2: 0.5 (colored) = 0.5
+        // - Martes T1: 2.0 (no color, value > 0.5) = 2.0
+        // - Martes T3: 1.0 (colored) = 1.0
+        // Total Normales = 3.5
+        expect(rec.horasNormales).toBe(3.5);
+
+        // Total Horas:
+        expect(rec.horasTotales).toBe(5.0);
+        expect(rec.horasNormales + rec.horasProlongacion).toBe(rec.horasTotales);
+
+        // Regla: Todo registro de la matriz debe ser SINDICALIZADO obligatoriamente
+        expect(rec.isSyndicated).toBe(true);
+        expect(rec.esSindicalizado).toBe(true);
+        expect(rec.tipo).toBe('SINDICALIZADO');
+        expect(rec.tipoColaborador).toBe('SINDICALIZADO');
+        expect(rec.tipo).not.toBe('NO SIND.');
+
+        // Registros diarios
+        expect(result.overtimeRecords.length).toBeGreaterThan(0);
+        result.overtimeRecords.forEach((daily) => {
+          expect(daily.isSyndicated).toBe(true);
+          expect(daily.esSindicalizado).toBe(true);
+          expect(daily.tipo).toBe('SINDICALIZADO');
+          expect(daily.tipoColaborador).toBe('SINDICALIZADO');
+          expect(daily.tipo).not.toBe('NO SIND.');
+        });
+
+        // Verificación de Turno
+        expect(rec.turno).toBe('1er Turno, 2do Turno, 3er Turno');
+      });
+
+      it('cross-references Líder de Área from Base TE (by ID and by Department)', () => {
+        const wb = XLSX.utils.book_new();
+        const aoa: any[][] = [
+          ['CLAVE', 'NOMBRE', 'LUNES', 'MARTES'],
+          ['SEMANA 44', 'PERIODO DEL 26 AL 01 DE NOVIEMBRE 2026'],
+          ['DEPTO', 'ACTIVO', 'ID', 'NOMBRE', 'ID SAP', '', '', '', '38', '39', '40'],
+          ['MANTENIMIENTO', 1, '7001', 'CARLOS LOPEZ', 'SAP-7001', '', '', '', 4.0, '', ''],
+          ['CALIDAD', 1, '7002', 'ANA GOMEZ', 'SAP-7002', '', '', '', '', 3.5, ''],
+        ];
+
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        XLSX.utils.book_append_sheet(wb, ws, '26-01');
+
+        const baseTe = [
+          { employeeId: '7001', department: 'MANTENIMIENTO', leader: 'Ing. Fernando Ruiz' },
+          { employeeId: '9999', department: 'CALIDAD', leader: 'Lic. Patricia Vega' }, // Matching by Department fallback
+        ];
+
+        const result = parseWeeklyMatrixWorkbook(wb, undefined, baseTe);
+        expect(result.records).toHaveLength(2);
+
+        // 7001 matched by employeeId
+        expect(result.records[0].leader).toBe('Ing. Fernando Ruiz');
+        expect(result.records[0].liderArea).toBe('Ing. Fernando Ruiz');
+        expect(result.records[0].turno).toBe('1er Turno');
+
+        // 7002 matched by department fallback
+        expect(result.records[1].leader).toBe('Lic. Patricia Vega');
+        expect(result.records[1].liderArea).toBe('Lic. Patricia Vega');
+        expect(result.records[1].turno).toBe('2do Turno');
+      });
+
+      it('enrichMatrixWithLeaders successfully enriches existing matrix records with leaders', () => {
+        const matrixRecords = [
+          { employeeId: '1001', department: 'ALMACEN', leader: 'ALMACEN' },
+          { employeeId: '1002', department: 'LOGISTICA', leader: 'LOGISTICA' },
+        ];
+        const baseTe = [
+          { employeeId: '1001', department: 'ALMACEN', leader: 'Ing. Alberto Garza' },
+          { employeeId: '9999', department: 'LOGISTICA', leader: 'Lic. Monica Treviño' },
+        ];
+
+        const enriched = enrichMatrixWithLeaders(matrixRecords, baseTe);
+        expect(enriched[0].leader).toBe('Ing. Alberto Garza');
+        expect(enriched[0].liderArea).toBe('Ing. Alberto Garza');
+        expect(enriched[1].leader).toBe('Lic. Monica Treviño');
+        expect(enriched[1].liderArea).toBe('Lic. Monica Treviño');
+      });
+
+      it('getTurnoBadgeClass returns appropriate styling for each shift', () => {
+        expect(getTurnoBadgeClass('1er Turno')).toContain('amber');
+        expect(getTurnoBadgeClass('2do Turno')).toContain('blue');
+        expect(getTurnoBadgeClass('3er Turno')).toContain('purple');
+        expect(getTurnoBadgeClass('1er Turno, 2do Turno')).toContain('teal');
+        expect(getTurnoBadgeClass('Sin Turno')).toContain('slate');
+      });
+    });
+  });
 });
+
 
 

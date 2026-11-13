@@ -1,4 +1,6 @@
 import {
+  AbsenceRecord,
+  AnnualOvertimeRecord,
   AttendanceRecord,
   AuditIncident,
   DepartmentLeader,
@@ -6,11 +8,23 @@ import {
   OvertimeRecord,
   ReasonCatalogItem,
   ThresholdConfig,
+  WeeklyMatrixRecord,
 } from '../types';
 import {
   db,
+  CLOUD_BATCH_ID,
+  CLOUD_ATTENDANCE_BATCH_ID,
+  CLOUD_BATCH_SOURCE,
+  CLOUD_MATRIZ_BATCH_ID,
+  MATRIZ_FILE_NAME,
+  MATRIZ_BATCH_SOURCE,
   initDatabaseWithSeed,
+  sanitizeCloudImportBatches,
   upsertOvertimeTransactional,
+  upsertCloudOvertimeBatchTransactional,
+  upsertWeeklyMatrixBatchTransactional,
+  replaceAnnualOvertimeTransactional,
+  replaceAbsenceRecordsTransactional,
   upsertAttendanceTransactional,
   deleteImportBatchTransactional,
   createCompleteBackup,
@@ -21,7 +35,17 @@ import {
 } from './db';
 import { BackupPayload } from '../schemas';
 
-export { DEFAULT_THRESHOLDS, INITIAL_LEADERS, OFFICIAL_REASONS_CATALOG };
+export {
+  CLOUD_BATCH_ID,
+  CLOUD_ATTENDANCE_BATCH_ID,
+  CLOUD_BATCH_SOURCE,
+  CLOUD_MATRIZ_BATCH_ID,
+  MATRIZ_FILE_NAME,
+  MATRIZ_BATCH_SOURCE,
+  DEFAULT_THRESHOLDS,
+  INITIAL_LEADERS,
+  OFFICIAL_REASONS_CATALOG,
+};
 
 export class AppStorage {
   /**
@@ -44,6 +68,66 @@ export class AppStorage {
 
   static async getAttendanceRecords(): Promise<AttendanceRecord[]> {
     return await db.attendanceRecords.toArray();
+  }
+
+  static async getAnnualOvertimeRecords(): Promise<AnnualOvertimeRecord[]> {
+    return await db.annualOvertimeRecords.toArray();
+  }
+
+  static async saveAnnualOvertimeRecords(records: AnnualOvertimeRecord[]): Promise<void> {
+    await replaceAnnualOvertimeTransactional(records);
+  }
+
+  static async getAbsenceRecords(): Promise<AbsenceRecord[]> {
+    return await db.absenceRecords.toArray();
+  }
+
+  static async saveAbsenceRecords(records: AbsenceRecord[]): Promise<void> {
+    await replaceAbsenceRecordsTransactional(records);
+  }
+
+  static async getWeeklyMatrixRecords(): Promise<WeeklyMatrixRecord[]> {
+    return await db.weeklyMatrixRecords.toArray();
+  }
+
+  static async saveWeeklyMatrixRecords(records: WeeklyMatrixRecord[]): Promise<void> {
+    await db.transaction('rw', db.weeklyMatrixRecords, async () => {
+      await db.weeklyMatrixRecords.clear();
+      await db.weeklyMatrixRecords.bulkAdd(records);
+    });
+  }
+
+  static async upsertWeeklyMatrixBatch(
+    matrixRecords: WeeklyMatrixRecord[],
+    dailyOvertimeRecords: OvertimeRecord[] = [],
+    syncTime?: string
+  ) {
+    return await upsertWeeklyMatrixBatchTransactional(matrixRecords, dailyOvertimeRecords, syncTime);
+  }
+
+  static async getMatrizSheetsUrl(): Promise<string | null> {
+    const entry = await db.dashboardConfig.get('matrizSheetsUrl');
+    if (entry && typeof entry.value === 'string') {
+      return entry.value;
+    }
+    try {
+      return localStorage.getItem('pcat_matriz_sheets_url');
+    } catch {
+      return null;
+    }
+  }
+
+  static async saveMatrizSheetsUrl(url: string): Promise<void> {
+    try {
+      localStorage.setItem('pcat_matriz_sheets_url', url);
+    } catch {
+      // LocalStorage unavailable
+    }
+    await db.dashboardConfig.put({
+      key: 'matrizSheetsUrl',
+      value: url,
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   static async saveAttendanceRecords(records: AttendanceRecord[]): Promise<void> {
@@ -131,6 +215,81 @@ export class AppStorage {
     });
   }
 
+  static async getLastSyncTimestamp(): Promise<string | null> {
+    const entry = await db.dashboardConfig.get('lastSyncTimestamp');
+    if (entry && typeof entry.value === 'string') {
+      return entry.value;
+    }
+    try {
+      return localStorage.getItem('pcat_last_sync_timestamp');
+    } catch {
+      return null;
+    }
+  }
+
+  static async saveLastSyncTimestamp(isoTimestamp: string): Promise<void> {
+    try {
+      localStorage.setItem('pcat_last_sync_timestamp', isoTimestamp);
+    } catch {
+      // LocalStorage unavailable
+    }
+    await db.dashboardConfig.put({
+      key: 'lastSyncTimestamp',
+      value: isoTimestamp,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  static async getSheetsUrl(): Promise<string | null> {
+    const entry = await db.dashboardConfig.get('sheetsCsvUrl');
+    if (entry && typeof entry.value === 'string') {
+      return entry.value;
+    }
+    try {
+      return localStorage.getItem('pcat_sheets_csv_url');
+    } catch {
+      return null;
+    }
+  }
+
+  static async saveSheetsUrl(url: string): Promise<void> {
+    try {
+      localStorage.setItem('pcat_sheets_csv_url', url);
+    } catch {
+      // LocalStorage unavailable
+    }
+    await db.dashboardConfig.put({
+      key: 'sheetsCsvUrl',
+      value: url,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  static async getAbsenceSheetsUrl(): Promise<string | null> {
+    const entry = await db.dashboardConfig.get('absenceSheetsCsvUrl');
+    if (entry && typeof entry.value === 'string') {
+      return entry.value;
+    }
+    try {
+      return localStorage.getItem('pcat_absence_sheets_csv_url');
+    } catch {
+      return null;
+    }
+  }
+
+  static async saveAbsenceSheetsUrl(url: string): Promise<void> {
+    try {
+      localStorage.setItem('pcat_absence_sheets_csv_url', url);
+    } catch {
+      // LocalStorage unavailable
+    }
+    await db.dashboardConfig.put({
+      key: 'absenceSheetsCsvUrl',
+      value: url,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
   /**
    * Idempotent transactional upsert for Overtime Records (Anti-Duplicates)
    */
@@ -139,6 +298,28 @@ export class AppStorage {
     batchId?: string
   ): Promise<{ newCount: number; updatedCount: number; ignoredCount: number }> {
     return await upsertOvertimeTransactional(incoming, batchId);
+  }
+
+  /**
+   * Upserts remote cloud overtime records and maintains a single fixed CLOUD_BATCH_ID history entry
+   */
+  static async upsertCloudOvertimeBatch(
+    incoming: OvertimeRecord[],
+    syncTime?: string
+  ): Promise<{
+    newCount: number;
+    updatedCount: number;
+    ignoredCount: number;
+    batchItem: ImportHistoryItem;
+  }> {
+    return await upsertCloudOvertimeBatchTransactional(incoming, syncTime);
+  }
+
+  /**
+   * Deduplicates legacy Google Sheets cloud batches, keeping only the latest under CLOUD_BATCH_ID
+   */
+  static async sanitizeCloudImportBatches(): Promise<void> {
+    await sanitizeCloudImportBatches();
   }
 
   /**
@@ -175,6 +356,8 @@ export class AppStorage {
     await Promise.all([
       db.overtimeRecords.clear(),
       db.attendanceRecords.clear(),
+      db.annualOvertimeRecords.clear(),
+      db.absenceRecords.clear(),
       db.auditIncidents.clear(),
       db.importBatches.clear(),
       db.changeLog.clear(),

@@ -86,6 +86,7 @@ export const OvertimeRecordSchema = z.object({
   company: z.string(),
   department: z.string(),
   leader: z.string(),
+  isSyndicated: z.boolean().optional(),
   startDate: z.string(), // YYYY-MM-DD
   startTime: z.string(), // HH:mm:ss
   endDate: z.string(), // YYYY-MM-DD
@@ -201,6 +202,48 @@ export const ThresholdConfigSchema = z.object({
   absenceCriticalRate: z.number().min(0),
 });
 
+export const AnnualOvertimeRecordSchema = z.object({
+  id: z.string(),
+  fecha: z.string(),
+  fechaDisplay: z.string(),
+  employeeId: z.string(),
+  employeeName: z.string(),
+  department: z.string(),
+  overtimeType: z.string(),
+  hours: z.number().min(0),
+  amount: z.number().min(0),
+  week: z.string(),
+  weekNumber: z.number(),
+  isoYear: z.number(),
+  monthNumber: z.number(),
+  monthName: z.string(),
+  leader: z.string(),
+  isSyndicated: z.boolean().optional(),
+  company: z.string().optional(),
+});
+
+export const AbsenceRecordSchema = z.object({
+  id: z.string(),
+  employeeId: z.string(),
+  employeeName: z.string(),
+  position: z.string(),
+  department: z.string(),
+  absenceType: z.string(),
+  absenceCategory: z.string(),
+  absences: z.number().min(0),
+  amount: z.number().min(0),
+  startDate: z.string(),
+  startDateDisplay: z.string(),
+  endDate: z.string(),
+  endDateDisplay: z.string(),
+  week: z.string(),
+  weekNumber: z.number(),
+  isoYear: z.number(),
+  leader: z.string(),
+  isSyndicated: z.boolean().optional(),
+  company: z.string().optional(),
+});
+
 export const BackupPayloadSchema = z.object({
   version: z.literal('1.0'),
   exportedAt: z.string(),
@@ -213,6 +256,8 @@ export const BackupPayloadSchema = z.object({
   data: z.object({
     overtimeRecords: z.array(OvertimeRecordSchema),
     attendanceRecords: z.array(AttendanceRecordSchema),
+    annualOvertimeRecords: z.array(AnnualOvertimeRecordSchema).optional(),
+    absenceRecords: z.array(AbsenceRecordSchema).optional(),
     departmentLeaders: z.array(DepartmentLeaderSchema),
     reasonsCatalog: z.array(ReasonCatalogItemSchema),
     exceptionsCatalog: z.array(ExceptionCatalogItemSchema).optional(),

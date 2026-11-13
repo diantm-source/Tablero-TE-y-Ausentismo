@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import {
   aggregateOvertimeData,
+  AttendanceDaysMapValue,
   formatShiftLabel,
   NormalizedOvertimeRow,
   OvertimeAggregationKPIs,
@@ -8,6 +9,7 @@ import {
   splitFullName,
   TrafficLightEvaluationMode,
 } from '../services/overtimeParser';
+import { determineSyndicatedStatus, isThirdShift } from '../services/businessRules';
 import { AttendanceRecord, OvertimeRecord } from '../types';
 
 export interface UseOvertimeAggregationResult {
@@ -22,12 +24,14 @@ interface EmployeeAttendanceInfo {
   lastName: string;
   schedulesByDate: Map<string, string>;
   defaultSchedule: string;
+  isSyndicated?: boolean;
 }
 
 /**
  * Adapter to allow passing OvertimeRecord[] (existing app model)
  * or NormalizedOvertimeRow[] (direct output from parseOvertimeExcel),
- * enriched with Attendance records to guarantee full names, surnames and shifts.
+ * enriched with Attendance records to guarantee full names, surnames, shifts,
+ * syndicated status and 3rd shift coverage.
  */
 function convertToNormalizedRows(
   data: (NormalizedOvertimeRow | OvertimeRecord)[],
@@ -39,19 +43,35 @@ function convertToNormalizedRows(
     // Check if it is already NormalizedOvertimeRow
     if ('idEmpleado' in item && 'duracionHoras' in item) {
       const row = item as NormalizedOvertimeRow;
+      const attInfo = attendanceDirectory?.get(row.idEmpleado);
+      const isSyndicated =
+        row.isSyndicated !== undefined
+          ? row.isSyndicated
+          : attInfo?.isSyndicated !== undefined
+          ? attInfo.isSyndicated
+          : determineSyndicatedStatus(row.company || 'Polaquimia', '', row.departamento);
+
+      const turno = row.turno || formatShiftLabel(attInfo?.defaultSchedule, row.horaInicio);
+      const isThird = row.isThirdShift ?? isThirdShift(turno, row.horaInicio, row.horaFin);
+
       // If apellido is empty, try resolving from directory
-      if (!row.apellido && attendanceDirectory?.has(row.idEmpleado)) {
-        const info = attendanceDirectory.get(row.idEmpleado)!;
-        if (info.lastName) {
-          return {
-            ...row,
-            apellido: info.lastName,
-            colaborador: [row.nombre, info.lastName].filter(Boolean).join(' '),
-            turno: row.turno || formatShiftLabel(info.defaultSchedule, row.horaInicio),
-          };
-        }
+      if (!row.apellido && attInfo?.lastName) {
+        return {
+          ...row,
+          apellido: attInfo.lastName,
+          colaborador: [row.nombre, attInfo.lastName].filter(Boolean).join(' '),
+          turno,
+          isSyndicated,
+          isThirdShift: isThird,
+        };
       }
-      return row;
+
+      return {
+        ...row,
+        turno,
+        isSyndicated,
+        isThirdShift: isThird,
+      };
     }
 
     // Convert from OvertimeRecord
@@ -89,17 +109,29 @@ function convertToNormalizedRows(
     const schedOnDate = attInfo?.schedulesByDate.get(ot.startDate) || attInfo?.defaultSchedule;
     const turno = formatShiftLabel(schedOnDate, ot.startTime);
 
+    // Detección de 3er Turno y Estatus Sindicalizado
+    const isThird = isThirdShift(turno, ot.startTime, ot.endTime, ot.reason);
+    const isSyndicated =
+      ot.isSyndicated !== undefined
+        ? ot.isSyndicated
+        : attInfo?.isSyndicated !== undefined
+        ? attInfo.isSyndicated
+        : determineSyndicatedStatus(ot.company || 'Polaquimia', '', ot.department);
+
     return {
       idEmpleado: ot.employeeId,
       nombre,
       apellido,
       colaborador,
       departamento: ot.department || 'Sin Departamento',
+      company: ot.company,
       horaInicio: `${ot.startDate} ${ot.startTime}`,
       horaFin: `${ot.endDate} ${ot.endTime}`,
       duracionHoras,
       estado,
       turno,
+      isSyndicated,
+      isThirdShift: isThird,
       isoYear: ot.isoYear,
       isoWeek: ot.isoWeek,
       semanaIso,
@@ -111,14 +143,17 @@ function convertToNormalizedRows(
  * Hook React: useOvertimeAggregation(data, allAttendance, evalMode)
  * Retorna:
  * - aggregatedData: Datos agrupados por empleado + Semana ISO con:
- *   - Nombre (hasta dos nombres) y Apellidos (hasta dos apellidos)
+ *   - Nombre y Apellidos completos
+ *   - Segmentación: SINDICALIZADO vs NO SINDICALIZADO (Confianza)
  *   - Días Laborados (D_lab): Días distintos trabajados en la semana
+ *   - Días en 3er Turno: Días en que se cubrió o laboró Turno Nocturno
  *   - Horas Base (H_base): TE Nominal
- *   - Bono por Día Laborado (H_dias = D_lab * 0.5)
- *   - Equivalencia Horaria (H_equiv = H_base + H_dias)
+ *   - Prolongación de Jornada:
+ *     - Sindicalizados: +1.0 hr/día en 3er turno y +0.5 hr/día en turnos restantes
+ *     - No Sindicalizados: 0.0 hrs (No aplica)
+ *   - Equivalencia Horaria (H_equiv = H_base + H_prolongacion)
  *   - Semáforo configurable (evaluado sobre H_equiv o H_base)
- *   - Turno oficial y fecha del último registro
- * - kpis: Contadores totales (rojo, amarillo, verde, total base y total equivalencia)
+ * - kpis: Contadores totales (rojo, amarillo, verde, sindicalizados, no sind, etc.)
  * - totalRecordsCount: Número de solicitudes procesadas
  */
 export function useOvertimeAggregation(
@@ -129,7 +164,14 @@ export function useOvertimeAggregation(
   // Construir índice de asistencia y mapa de días laborados por empleado y semana
   const { attendanceDirectory, attendanceDaysByEmployeeWeek } = useMemo(() => {
     const map = new Map<string, EmployeeAttendanceInfo>();
-    const daysMap = new Map<string, Set<string>>();
+    const daysMap = new Map<
+      string,
+      {
+        activeDates: Set<string>;
+        thirdShiftDates: Set<string>;
+        isSyndicated?: boolean;
+      }
+    >();
 
     if (!allAttendance || allAttendance.length === 0) {
       return { attendanceDirectory: map, attendanceDaysByEmployeeWeek: daysMap };
@@ -154,6 +196,7 @@ export function useOvertimeAggregation(
           lastName: lName,
           schedulesByDate: new Map(),
           defaultSchedule: att.schedule || '',
+          isSyndicated: att.isSyndicated,
         };
         map.set(att.employeeId, entry);
       }
@@ -163,6 +206,7 @@ export function useOvertimeAggregation(
       }
       if (att.firstName && !entry.firstName) entry.firstName = att.firstName;
       if (att.lastName && !entry.lastName) entry.lastName = att.lastName;
+      if (att.isSyndicated !== undefined) entry.isSyndicated = att.isSyndicated;
 
       // 2. Conteo de días laborados en la semana
       if (att.date) {
@@ -174,15 +218,34 @@ export function useOvertimeAggregation(
           sched.includes('FESTIVO') ||
           att.absenceStatus === 'AUSENCIA_CONFIRMADA';
         const hasPunch = Boolean(att.realIn || att.realOut);
-        const isWorked = hasPunch || att.absenceStatus === 'PRESENTE' || (!isDescanso && att.absenceStatus !== 'EXCLUIDO_HORARIO');
+        const isWorked =
+          hasPunch ||
+          att.absenceStatus === 'PRESENTE' ||
+          (!isDescanso && att.absenceStatus !== 'EXCLUIDO_HORARIO');
 
         if (isWorked) {
           const semanaIso = `${att.isoYear}-W${String(att.isoWeek).padStart(2, '0')}`;
           const weekKey = `${att.employeeId}__${semanaIso}`;
           if (!daysMap.has(weekKey)) {
-            daysMap.set(weekKey, new Set<string>());
+            daysMap.set(weekKey, {
+              activeDates: new Set<string>(),
+              thirdShiftDates: new Set<string>(),
+              isSyndicated: att.isSyndicated,
+            });
           }
-          daysMap.get(weekKey)!.add(att.date);
+          const weekEntry = daysMap.get(weekKey)!;
+          weekEntry.activeDates.add(att.date);
+
+          // Verificar si este registro de asistencia regular corresponde al 3er turno
+          if (
+            isThirdShift(
+              att.schedule,
+              att.schedIn || att.realIn || undefined,
+              att.schedOut || att.realOut || undefined
+            )
+          ) {
+            weekEntry.thirdShiftDates.add(att.date);
+          }
         }
       }
     }
@@ -196,6 +259,8 @@ export function useOvertimeAggregation(
         aggregatedData: [],
         kpis: {
           totalColaboradores: 0,
+          sindicalizadosCount: 0,
+          noSindicalizadosCount: 0,
           rojoCount: 0,
           amarilloCount: 0,
           verdeCount: 0,
@@ -204,6 +269,8 @@ export function useOvertimeAggregation(
           totalAcumulado: 0,
           totalEquivalenciaHoraria: 0,
           totalDiasLaborados: 0,
+          totalDiasTercerTurno: 0,
+          totalHorasProlongacion: 0,
         },
         totalRecordsCount: 0,
       };

@@ -1,14 +1,16 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { FilteredKPIs } from '../../services/kpiEngine';
-import { AttendanceRecord } from '../../types';
+import {
+  AbsenceRecord,
+  AttendanceRecord,
+  GlobalFilterState,
+  OvertimeRecord,
+} from '../../types';
 import { exportToExcel } from '../../services/excelParser';
-import { DataTable } from '../DataTable';
-import { ColumnDef } from '@tanstack/react-table';
+import { AbsenceConcentratedView } from './AbsenceConcentratedView';
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -20,9 +22,38 @@ import {
 interface AttendanceAnalysisViewProps {
   kpis: FilteredKPIs;
   allAttendance: AttendanceRecord[];
+  allOvertime?: OvertimeRecord[];
+  absenceRecords?: AbsenceRecord[];
+  filters?: GlobalFilterState;
+  isSyncing?: boolean;
+  onSyncCloud?: () => Promise<void>;
 }
 
-export const AttendanceAnalysisView: React.FC<AttendanceAnalysisViewProps> = ({ kpis }) => {
+const FALLBACK_FILTERS: GlobalFilterState = {
+  companies: ['ALL'],
+  companyPreset: 'ALL',
+  departments: ['ALL'],
+  leaders: ['ALL'],
+  month: 'ALL',
+  isoWeek: 'ALL',
+  specificDate: '',
+  startDate: '',
+  endDate: '',
+  overtimeStatus: 'ALL',
+  collaboratorType: 'ALL',
+  searchTerm: '',
+};
+
+export const AttendanceAnalysisView: React.FC<AttendanceAnalysisViewProps> = ({
+  kpis,
+  allAttendance,
+  allOvertime = [],
+  absenceRecords = [],
+  filters = FALLBACK_FILTERS,
+  isSyncing = false,
+  onSyncCloud,
+}) => {
+  const [activeTab, setActiveTab] = useState<'concentrated' | 'biotime'>('concentrated');
   const [tableSearch, setTableSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'AUSENCIAS' | 'INCIDENCIAS' | 'JUSTIFICADAS'>('ALL');
   const [page, setPage] = useState(1);
@@ -122,36 +153,98 @@ export const AttendanceAnalysisView: React.FC<AttendanceAnalysisViewProps> = ({ 
 
   return (
     <div className="space-y-6">
-      {/* Top Banner with Formula & Criteria */}
+      {/* Top Banner with Module Tabs */}
       <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">
               Módulo de Ausentismo
             </span>
-            <span className="text-xs text-slate-500">Reglas de elegibilidad estrictas</span>
-            <span className="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-              <i className="bi bi-funnel-fill text-[11px] text-emerald-600"></i>
-              <span>{kpis.filteredAttendance.length} registros filtrados</span>
-            </span>
+            {activeTab === 'concentrated' ? (
+              <>
+                <span className="text-xs text-slate-500">Concentrado Google Sheets / Excel</span>
+                <span className="px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1">
+                  <i className="bi bi-file-earmark-spreadsheet-fill text-[11px] text-blue-600"></i>
+                  <span>{absenceRecords.length} registros en concentrado</span>
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-xs text-slate-500">Reglas de elegibilidad estrictas</span>
+                <span className="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                  <i className="bi bi-funnel-fill text-[11px] text-emerald-600"></i>
+                  <span>{kpis.filteredAttendance.length} registros filtrados</span>
+                </span>
+              </>
+            )}
           </div>
-          <h2 className="text-xl font-bold text-slate-900">Control de Asistencia y Tasa de Ausentismo</h2>
+          <h2 className="text-xl font-bold text-slate-900">
+            {activeTab === 'concentrated'
+              ? 'Análisis de Ausentismo — Concentrado de Ausencias'
+              : 'Control de Asistencia y Tasa de Ausentismo'}
+          </h2>
           <p className="text-xs text-slate-600 mt-0.5">
-            Evaluación automatizada sobre horarios permitidos (1, 1s, 2, 2s, 3, 3s, CM, C).
+            {activeTab === 'concentrated'
+              ? 'Seguimiento de faltas injustificadas, costos por ausentismo, tipos de ausencia y desglose por departamento/semana.'
+              : 'Evaluación automatizada sobre horarios permitidos (1, 1s, 2, 2s, 3, 3s, CM, C).'}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleExportAttendance}
-            className="px-3.5 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
-          >
-            <i className="bi bi-file-earmark-excel-fill text-sm"></i>
-            <span>Exportar Detalle ({filteredRecords.length})</span>
-          </button>
-        </div>
+        {activeTab === 'biotime' && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportAttendance}
+              className="px-3.5 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
+            >
+              <i className="bi bi-file-earmark-excel-fill text-sm"></i>
+              <span>Exportar Detalle ({filteredRecords.length})</span>
+            </button>
+          </div>
+        )}
       </div>
 
+      {/* Module Source Navigation Tabs */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab('concentrated')}
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+            activeTab === 'concentrated'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
+          }`}
+        >
+          <span aria-hidden="true">📋</span>
+          <span>Concentrado de Ausencias (Sheets)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('biotime')}
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+            activeTab === 'biotime'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
+          }`}
+        >
+          <span aria-hidden="true">⏱️</span>
+          <span>Análisis BioTime Enterprise</span>
+        </button>
+      </div>
+
+      {activeTab === 'concentrated' && (
+        <AbsenceConcentratedView
+          records={absenceRecords}
+          filters={filters}
+          allOvertime={allOvertime}
+          allAttendance={allAttendance}
+          isSyncing={isSyncing}
+          onSyncCloud={onSyncCloud}
+        />
+      )}
+
+      {activeTab === 'biotime' && (
+        <div className="space-y-6">
       {/* Transparent Formula Display Box */}
       <div className="bg-slate-900 text-slate-100 rounded-xl p-4 shadow-sm border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
@@ -524,6 +617,8 @@ export const AttendanceAnalysisView: React.FC<AttendanceAnalysisViewProps> = ({ 
           </div>
         </div>
       </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -561,6 +561,10 @@ export function determineSyndicatedStatus(
   if (comp.includes('polatecnia')) {
     return false;
   }
+  // Explicitly marked as not syndicated or confianza
+  if (nick.includes('no sind') || nick.includes('confianza') || nick.includes('no_sind') || dept.includes('confianza')) {
+    return false;
+  }
   // Polaquimia plant / operational workers with specific nickname patterns
   if (nick.includes('sind') || nick.includes('sindicalizado') || nick.includes('planta') || nick.includes('operativo')) {
     return true;
@@ -571,4 +575,131 @@ export function determineSyndicatedStatus(
   }
 
   return false;
+}
+
+/**
+ * Detects whether a shift, overtime punch, or schedule corresponds to 3rd Shift (Turno Nocturno).
+ * Criteria:
+ * 1. Explicit shift code or label containing '3', '3P', '3S', 'tercer turno', '3er turno', 'nocturno'.
+ * 2. Start time falls within the night shift window (21:00 to 05:59).
+ * 3. Crosses midnight into the morning (e.g. 22:00 to 06:00, 23:00 to 07:00).
+ * 4. Reason contains explicit mention of 3rd shift coverage ('3er turno', 'tercer turno').
+ */
+export function isThirdShift(
+  shiftOrSchedule?: string,
+  startTime?: string,
+  endTime?: string,
+  reason?: string
+): boolean {
+  const normShift = normalizeText(shiftOrSchedule || '');
+  if (
+    normShift.includes('3er turno') ||
+    normShift.includes('tercer turno') ||
+    normShift.includes('tercer') ||
+    normShift.includes('nocturno') ||
+    normShift === '3' ||
+    normShift === '3p' ||
+    normShift === '3s' ||
+    normShift.startsWith('3 -') ||
+    normShift.startsWith('3p -') ||
+    normShift.startsWith('3s -') ||
+    normShift === 'ct3' ||
+    normShift === 'ct3s' ||
+    normShift === '12v'
+  ) {
+    return true;
+  }
+
+  const normReason = normalizeText(reason || '');
+  if (
+    normReason.includes('3er turno') ||
+    normReason.includes('tercer turno') ||
+    normReason.includes('3er') ||
+    normReason.includes('3 turno') ||
+    normReason.includes('turno 3') ||
+    normReason.includes('nocturno')
+  ) {
+    return true;
+  }
+
+  // Check start and end times
+  const extractHour = (timeVal?: string): number | null => {
+    if (!timeVal) return null;
+    const match = String(timeVal).match(/(\d{1,2}):(\d{2})/);
+    return match ? parseInt(match[1], 10) : null;
+  };
+
+  const startHour = extractHour(startTime);
+  const endHour = extractHour(endTime);
+
+  if (startHour !== null) {
+    // Starts at night (21:00 - 23:59) or early morning (00:00 - 05:59)
+    if (startHour >= 21 || startHour < 6) {
+      return true;
+    }
+  }
+
+  // Crosses midnight and ends in morning (e.g. 15:00 to 07:00 or 22:00 to 06:00)
+  if (startHour !== null && endHour !== null) {
+    if (startHour > endHour && (endHour >= 5 && endHour <= 9)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export interface OvertimeEquivalenceBreakdown {
+  horasBase: number; // TE Nominal (aprobadas + pendientes)
+  diasLaborados: number; // D_lab total
+  diasTercerTurno: number; // Días laborados en 3er Turno
+  diasTurnosRestantes: number; // Días laborados en turnos 1er/2do/mixtos
+  horasProlongacion3erTurno: number; // diasTercerTurno * 1.0 (si es sindicalizado)
+  horasProlongacionRestantes: number; // diasTurnosRestantes * 0.5 (si es sindicalizado)
+  horasAdicionalesPorDia: number; // Total horas compensación prolongación jornada
+  equivalenciaHoraria: number; // horasBase + horasAdicionalesPorDia
+  isSyndicated: boolean;
+}
+
+/**
+ * Calculates Overtime Equivalence (Equivalencia Horaria / Prolongación de Jornada)
+ * based on employee syndicated status and shift type:
+ * - NO SINDICALIZADO: Compensación = 0 hrs. Equivalencia Horaria = Horas Base Nominales.
+ * - SINDICALIZADO:
+ *   - Días en 3er Turno (Turno Nocturno): +1.0 hora por día laborado.
+ *   - Días en turnos restantes (1er, 2do, mixtos): +0.5 horas por día laborado.
+ */
+export function calculateOvertimeEquivalence(
+  horasBase: number,
+  totalDiasLaborados: number,
+  diasTercerTurno: number,
+  isSyndicated: boolean
+): OvertimeEquivalenceBreakdown {
+  const safeTotalDias = Math.max(0, totalDiasLaborados);
+  const safeDias3er = Math.min(safeTotalDias, Math.max(0, diasTercerTurno));
+  const safeDiasRestantes = Math.max(0, safeTotalDias - safeDias3er);
+
+  let horasProlongacion3erTurno = 0;
+  let horasProlongacionRestantes = 0;
+  let horasAdicionalesPorDia = 0;
+
+  if (isSyndicated) {
+    horasProlongacion3erTurno = Math.round(safeDias3er * 1.0 * 10) / 10;
+    horasProlongacionRestantes = Math.round(safeDiasRestantes * 0.5 * 10) / 10;
+    horasAdicionalesPorDia = Math.round((horasProlongacion3erTurno + horasProlongacionRestantes) * 10) / 10;
+  }
+
+  const equivalenciaHoraria = Math.round((horasBase + horasAdicionalesPorDia) * 10) / 10;
+
+  return {
+    horasBase: Math.round(horasBase * 10) / 10,
+    diasLaborados: safeTotalDias,
+    diasTercerTurno: safeDias3er,
+    diasTurnosRestantes: safeDiasRestantes,
+    horasProlongacion3erTurno,
+    horasProlongacionRestantes,
+    horasAdicionalesPorDia,
+    equivalenciaHoraria,
+    isSyndicated,
+  };
 }

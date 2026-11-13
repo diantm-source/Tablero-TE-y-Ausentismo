@@ -1,5 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import {
+  AbsenceRecord,
+  AnnualOvertimeRecord,
   AttendanceRecord,
   AuditIncident,
   DepartmentLeader,
@@ -7,6 +9,7 @@ import {
   OvertimeRecord,
   ReasonCatalogItem,
   ThresholdConfig,
+  WeeklyMatrixRecord,
 } from '../types';
 import {
   BackupPayload,
@@ -77,6 +80,9 @@ export class BioTimeDatabase extends Dexie {
   leaders!: Table<DepartmentLeader, string>;
   overtimeRecords!: Table<OvertimeRecord, string>;
   attendanceRecords!: Table<AttendanceRecord, string>;
+  annualOvertimeRecords!: Table<AnnualOvertimeRecord, string>;
+  absenceRecords!: Table<AbsenceRecord, string>;
+  weeklyMatrixRecords!: Table<WeeklyMatrixRecord, string>;
   reasonsCatalog!: Table<ReasonCatalogItem, string>;
   exceptionsCatalog!: Table<ExceptionCatalogItem, string>;
   importBatches!: Table<ImportHistoryItem, string>;
@@ -102,10 +108,80 @@ export class BioTimeDatabase extends Dexie {
       auditIncidents: 'id, type, severity, recordType, date, sourceFile, detectedAt',
       dashboardConfig: 'key',
     });
+    this.version(2).stores({
+      companies: 'id, name, isAttendanceEligible, isActive',
+      departments: 'id, name, company',
+      employees: 'id, employeeId, company, department, isSyndicated, isActive',
+      leaders: 'id, department, company, leaderName',
+      overtimeRecords:
+        'id, employeeId, company, department, leader, startDate, status, isoYear, isoWeek, dateOnly, importBatchId, [company+employeeId+dateOnly], [isoYear+isoWeek]',
+      attendanceRecords:
+        'id, employeeId, company, department, leader, date, absenceStatus, isSyndicated, schedule, isScheduleEligible, isoYear, isoWeek, importBatchId, [company+employeeId+date], [isoYear+isoWeek]',
+      annualOvertimeRecords:
+        'id, fecha, employeeId, department, leader, weekNumber, isoYear, monthNumber, overtimeType',
+      reasonsCatalog: 'id, category, officialReason, isActive',
+      exceptionsCatalog: 'id, code, name, category, isJustified',
+      importBatches: 'id, batchId, fileName, fileType, importedAt, status',
+      changeLog: 'id, entityType, entityId, action, modifiedAt, batchId',
+      auditIncidents: 'id, type, severity, recordType, date, sourceFile, detectedAt',
+      dashboardConfig: 'key',
+    });
+    this.version(3).stores({
+      companies: 'id, name, isAttendanceEligible, isActive',
+      departments: 'id, name, company',
+      employees: 'id, employeeId, company, department, isSyndicated, isActive',
+      leaders: 'id, department, company, leaderName',
+      overtimeRecords:
+        'id, employeeId, company, department, leader, startDate, status, isoYear, isoWeek, dateOnly, importBatchId, [company+employeeId+dateOnly], [isoYear+isoWeek]',
+      attendanceRecords:
+        'id, employeeId, company, department, leader, date, absenceStatus, isSyndicated, schedule, isScheduleEligible, isoYear, isoWeek, importBatchId, [company+employeeId+date], [isoYear+isoWeek]',
+      annualOvertimeRecords:
+        'id, fecha, employeeId, department, leader, weekNumber, isoYear, monthNumber, overtimeType',
+      absenceRecords:
+        'id, employeeId, department, leader, absenceType, absenceCategory, startDate, endDate, weekNumber, isoYear',
+      reasonsCatalog: 'id, category, officialReason, isActive',
+      exceptionsCatalog: 'id, code, name, category, isJustified',
+      importBatches: 'id, batchId, fileName, fileType, importedAt, status',
+      changeLog: 'id, entityType, entityId, action, modifiedAt, batchId',
+      auditIncidents: 'id, type, severity, recordType, date, sourceFile, detectedAt',
+      dashboardConfig: 'key',
+    });
+    this.version(4).stores({
+      companies: 'id, name, isAttendanceEligible, isActive',
+      departments: 'id, name, company',
+      employees: 'id, employeeId, company, department, isSyndicated, isActive',
+      leaders: 'id, department, company, leaderName',
+      overtimeRecords:
+        'id, employeeId, company, department, leader, startDate, status, isoYear, isoWeek, dateOnly, importBatchId, [company+employeeId+dateOnly], [isoYear+isoWeek]',
+      attendanceRecords:
+        'id, employeeId, company, department, leader, date, absenceStatus, isSyndicated, schedule, isScheduleEligible, isoYear, isoWeek, importBatchId, [company+employeeId+date], [isoYear+isoWeek]',
+      annualOvertimeRecords:
+        'id, fecha, employeeId, department, leader, weekNumber, isoYear, monthNumber, overtimeType',
+      absenceRecords:
+        'id, employeeId, department, leader, absenceType, absenceCategory, startDate, endDate, weekNumber, isoYear',
+      weeklyMatrixRecords:
+        'id, employeeId, department, week, weekNumber, isoYear, monthNumber, importBatchId, [isoYear+weekNumber]',
+      reasonsCatalog: 'id, category, officialReason, isActive',
+      exceptionsCatalog: 'id, code, name, category, isJustified',
+      importBatches: 'id, batchId, fileName, fileType, importedAt, status',
+      changeLog: 'id, entityType, entityId, action, modifiedAt, batchId',
+      auditIncidents: 'id, type, severity, recordType, date, sourceFile, detectedAt',
+      dashboardConfig: 'key',
+    });
   }
 }
 
 export const db = new BioTimeDatabase();
+
+export const CLOUD_BATCH_ID = 'BATCH_CLOUD_GOOGLE_SHEETS_TE';
+export const CLOUD_ATTENDANCE_BATCH_ID = 'BATCH_CLOUD_GOOGLE_SHEETS_ASIST';
+export const CLOUD_BATCH_SOURCE = 'Google Sheets (Nube)';
+export const CLOUD_SOURCE_FILE = 'GoogleSheets_BioTime_TE.csv';
+
+// Conector adicional independiente: Matriz Semanal de Tiempo Extra y Prolongación de Jornada
+export const CLOUD_MATRIZ_BATCH_ID = 'BATCH_CLOUD_MATRIZ_TE';
+export const MATRIZ_FILE_NAME = 'Registro_Prolongacion.xlsx';
+export const MATRIZ_BATCH_SOURCE = "Google Sheets (Nube) + 'Registro_Prolongacion.xlsx'";
 
 export const DEFAULT_THRESHOLDS: ThresholdConfig = {
   overtimeHighWarningDeptHours: 45,
@@ -443,6 +519,192 @@ export async function initDatabaseWithSeed(): Promise<void> {
   } catch (err) {
     console.warn('Advertencia durante migración de localStorage a IndexedDB:', err);
   }
+
+  // 7. Sanitize any duplicate cloud import batches from previous dynamic IDs
+  await sanitizeCloudImportBatches();
+}
+
+function isCloudOvertimeBatch(
+  batch: Partial<ImportHistoryItem> & { batchId?: string; fileName?: string; fileType?: string }
+): boolean {
+  if (batch.id === CLOUD_ATTENDANCE_BATCH_ID || batch.batchId === CLOUD_ATTENDANCE_BATCH_ID) {
+    return false;
+  }
+  if (batch.id === CLOUD_MATRIZ_BATCH_ID || batch.batchId === CLOUD_MATRIZ_BATCH_ID) {
+    return false;
+  }
+  if (batch.fileType && batch.fileType !== 'overtime') {
+    return false;
+  }
+  return (
+    batch.id === CLOUD_BATCH_ID ||
+    batch.batchId === CLOUD_BATCH_ID ||
+    batch.fileName === CLOUD_BATCH_SOURCE ||
+    Boolean(batch.batchId && batch.batchId.startsWith('BATCH_CLOUD_'))
+  );
+}
+
+function computeOvertimeDateRangeCovered(records: OvertimeRecord[]): string {
+  const validDates = records
+    .flatMap((r) => [r.startDate, r.endDate])
+    .filter((d): d is string => Boolean(d && /^\d{4}-\d{2}-\d{2}$/.test(d)))
+    .sort();
+
+  if (validDates.length === 0) {
+    return 'Periodo no especificado';
+  }
+  return `${validDates[0]} a ${validDates[validDates.length - 1]}`;
+}
+
+function normalizeCloudBatchItem(
+  raw: Partial<ImportHistoryItem> & Record<string, unknown>,
+  overrides?: Partial<ImportHistoryItem>
+): ImportHistoryItem {
+  const legacyRecordCount = typeof raw.recordCount === 'number' ? raw.recordCount : 0;
+  const legacyNew = typeof raw.newRecordsCount === 'number' ? raw.newRecordsCount : 0;
+  const legacyUpdated = typeof raw.updatedRecordsCount === 'number' ? raw.updatedRecordsCount : 0;
+  const legacyIgnored = typeof raw.ignoredRecordsCount === 'number' ? raw.ignoredRecordsCount : 0;
+  const legacyDateRange =
+    typeof raw.periodStart === 'string' && typeof raw.periodEnd === 'string'
+      ? `${raw.periodStart} a ${raw.periodEnd}`
+      : 'Periodo no especificado';
+
+  const rawStatus = raw.status;
+  const normalizedStatus: ImportHistoryItem['status'] =
+    overrides?.status ??
+    (rawStatus === 'COMPLETADO' || rawStatus === 'CON_ADVERTENCIAS' || rawStatus === 'FALLIDO'
+      ? rawStatus
+      : 'COMPLETADO');
+
+  return {
+    id: CLOUD_BATCH_ID,
+    batchId: CLOUD_BATCH_ID,
+    fileName: overrides?.fileName ?? (typeof raw.fileName === 'string' && raw.fileName ? raw.fileName : CLOUD_BATCH_SOURCE),
+    fileType: 'overtime',
+    importedAt:
+      overrides?.importedAt ??
+      (typeof raw.importedAt === 'string' && raw.importedAt ? raw.importedAt : new Date().toISOString()),
+    user:
+      overrides?.user ??
+      (typeof raw.user === 'string' && raw.user ? raw.user : 'Sincronización Automática (Nube)'),
+    totalRows: overrides?.totalRows ?? (typeof raw.totalRows === 'number' ? raw.totalRows : legacyRecordCount),
+    newRecords: overrides?.newRecords ?? (typeof raw.newRecords === 'number' ? raw.newRecords : legacyNew),
+    updatedRecords:
+      overrides?.updatedRecords ?? (typeof raw.updatedRecords === 'number' ? raw.updatedRecords : legacyUpdated),
+    ignoredRecords:
+      overrides?.ignoredRecords ?? (typeof raw.ignoredRecords === 'number' ? raw.ignoredRecords : legacyIgnored),
+    rejectedRecords:
+      overrides?.rejectedRecords ?? (typeof raw.rejectedRecords === 'number' ? raw.rejectedRecords : 0),
+    dateRangeCovered:
+      overrides?.dateRangeCovered ??
+      (typeof raw.dateRangeCovered === 'string' && raw.dateRangeCovered ? raw.dateRangeCovered : legacyDateRange),
+    status: normalizedStatus,
+  };
+}
+
+function sanitizeLocalStorageCloudBatches(replacement?: ImportHistoryItem): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const rawHist = localStorage.getItem('pcat_import_history_v1');
+    if (!rawHist) return;
+
+    const parsed = JSON.parse(rawHist);
+    if (!Array.isArray(parsed)) return;
+
+    const nonCloud = parsed.filter((b) => !isCloudOvertimeBatch(b));
+    const cloudOnes = parsed.filter((b) => isCloudOvertimeBatch(b));
+
+    if (replacement) {
+      localStorage.setItem('pcat_import_history_v1', JSON.stringify([replacement, ...nonCloud]));
+      return;
+    }
+
+    if (cloudOnes.length === 0) return;
+
+    cloudOnes.sort(
+      (a, b) =>
+        (new Date(b?.importedAt || 0).getTime() || 0) -
+        (new Date(a?.importedAt || 0).getTime() || 0)
+    );
+    const latest = normalizeCloudBatchItem(cloudOnes[0] as Record<string, unknown>);
+    localStorage.setItem('pcat_import_history_v1', JSON.stringify([latest, ...nonCloud]));
+  } catch {
+    // localStorage unavailable or malformed
+  }
+}
+
+/**
+ * Deduplicates legacy cloud batches (Google Sheets (Nube)) in IndexedDB and localStorage,
+ * keeping only the most recent entry normalized under CLOUD_BATCH_ID.
+ */
+export async function sanitizeCloudImportBatches(): Promise<void> {
+  sanitizeLocalStorageCloudBatches();
+
+  await db.transaction('rw', [db.importBatches, db.overtimeRecords, db.changeLog], async () => {
+    const allBatches = await db.importBatches.toArray();
+    const cloudBatches = allBatches.filter((b) => isCloudOvertimeBatch(b));
+
+    if (cloudBatches.length === 0) {
+      return;
+    }
+
+    const sorted = [...cloudBatches].sort(
+      (a, b) =>
+        (new Date(b.importedAt || 0).getTime() || 0) -
+        (new Date(a.importedAt || 0).getTime() || 0)
+    );
+    const latest = sorted[0];
+    const hasLegacyShape =
+      latest.id !== CLOUD_BATCH_ID ||
+      latest.batchId !== CLOUD_BATCH_ID ||
+      (latest.status !== 'COMPLETADO' &&
+        latest.status !== 'CON_ADVERTENCIAS' &&
+        latest.status !== 'FALLIDO') ||
+      typeof latest.newRecords !== 'number' ||
+      typeof latest.dateRangeCovered !== 'string';
+
+    if (cloudBatches.length === 1 && !hasLegacyShape) {
+      return;
+    }
+
+    const oldIds = cloudBatches.map((b) => b.id);
+    const oldBatchIds = new Set(cloudBatches.map((b) => b.batchId));
+    const normalizedLatest = normalizeCloudBatchItem(latest as unknown as Record<string, unknown>);
+
+    await db.importBatches.bulkDelete(oldIds);
+    await db.importBatches.put(normalizedLatest);
+
+    const legacyOtRecords = await db.overtimeRecords
+      .filter(
+        (r) =>
+          (r.importBatchId !== undefined &&
+            r.importBatchId !== CLOUD_BATCH_ID &&
+            (oldBatchIds.has(r.importBatchId) ||
+              (r.importBatchId.startsWith('BATCH_CLOUD_') && r.importBatchId !== CLOUD_ATTENDANCE_BATCH_ID))) ||
+          (!r.importBatchId && r.sourceFile === CLOUD_SOURCE_FILE)
+      )
+      .toArray();
+
+    if (legacyOtRecords.length > 0) {
+      await db.overtimeRecords.bulkPut(
+        legacyOtRecords.map((r) => ({ ...r, importBatchId: CLOUD_BATCH_ID }))
+      );
+    }
+
+    const legacyLogs = await db.changeLog
+      .filter(
+        (l) =>
+          l.batchId !== undefined &&
+          l.batchId !== CLOUD_BATCH_ID &&
+          (oldBatchIds.has(l.batchId) ||
+            (l.batchId.startsWith('BATCH_CLOUD_') && l.batchId !== CLOUD_ATTENDANCE_BATCH_ID))
+      )
+      .toArray();
+
+    if (legacyLogs.length > 0) {
+      await db.changeLog.bulkPut(legacyLogs.map((l) => ({ ...l, batchId: CLOUD_BATCH_ID })));
+    }
+  });
 }
 
 /**
@@ -536,6 +798,127 @@ export async function upsertOvertimeTransactional(
 
     return { newCount, updatedCount, ignoredCount };
   });
+}
+
+/**
+ * Upserts remote cloud overtime records and updates (or creates once) the fixed CLOUD_BATCH_ID batch entry.
+ * Replaces the previous cloud dataset while keeping manual local Excel imports intact.
+ */
+export async function upsertCloudOvertimeBatchTransactional(
+  records: OvertimeRecord[],
+  syncTime = new Date().toISOString()
+): Promise<{
+  newCount: number;
+  updatedCount: number;
+  ignoredCount: number;
+  batchItem: ImportHistoryItem;
+}> {
+  const stampedRecords: OvertimeRecord[] = records.map((r) => ({
+    ...r,
+    importBatchId: CLOUD_BATCH_ID,
+  }));
+
+  const dateRangeCovered = computeOvertimeDateRangeCovered(stampedRecords);
+
+  const result = await db.transaction(
+    'rw',
+    [db.overtimeRecords, db.changeLog, db.employees, db.importBatches],
+    async () => {
+      const { newCount, updatedCount, ignoredCount } = await upsertOvertimeTransactional(
+        stampedRecords,
+        CLOUD_BATCH_ID
+      );
+
+      const incomingIds = new Set(stampedRecords.map((r) => r.id));
+
+      // Remove stale cloud-sourced records that no longer exist in the remote sheet
+      const staleCloudIds = await db.overtimeRecords
+        .filter(
+          (r) =>
+            !incomingIds.has(r.id) &&
+            (r.importBatchId === CLOUD_BATCH_ID ||
+              Boolean(
+                r.importBatchId?.startsWith('BATCH_CLOUD_') &&
+                  r.importBatchId !== CLOUD_ATTENDANCE_BATCH_ID
+              ) ||
+              r.sourceFile === CLOUD_SOURCE_FILE)
+        )
+        .primaryKeys();
+
+      if (staleCloudIds.length > 0) {
+        await db.overtimeRecords.bulkDelete(staleCloudIds);
+      }
+
+      // Ensure existing unchanged cloud records carry the fixed CLOUD_BATCH_ID
+      const recordsNeedingBatchId = await db.overtimeRecords
+        .filter(
+          (r) =>
+            incomingIds.has(r.id) &&
+            r.importBatchId !== CLOUD_BATCH_ID &&
+            (Boolean(
+              r.importBatchId?.startsWith('BATCH_CLOUD_') &&
+                r.importBatchId !== CLOUD_ATTENDANCE_BATCH_ID
+            ) ||
+              r.sourceFile === CLOUD_SOURCE_FILE)
+        )
+        .toArray();
+
+      if (recordsNeedingBatchId.length > 0) {
+        await db.overtimeRecords.bulkPut(
+          recordsNeedingBatchId.map((r) => ({ ...r, importBatchId: CLOUD_BATCH_ID }))
+        );
+      }
+
+      // Upsert single cloud batch row in importBatches (and purge any legacy duplicates)
+      const allBatches = await db.importBatches.toArray();
+      const existingCloudBatches = allBatches.filter((b) => isCloudOvertimeBatch(b));
+      const duplicateIds = existingCloudBatches
+        .map((b) => b.id)
+        .filter((id) => id !== CLOUD_BATCH_ID);
+
+      if (duplicateIds.length > 0) {
+        await db.importBatches.bulkDelete(duplicateIds);
+      }
+
+      const existingTarget =
+        existingCloudBatches.find((b) => b.id === CLOUD_BATCH_ID) || existingCloudBatches[0];
+
+      const batchItem: ImportHistoryItem = existingTarget
+        ? normalizeCloudBatchItem(existingTarget as unknown as Record<string, unknown>, {
+            importedAt: syncTime,
+            totalRows: stampedRecords.length,
+            newRecords: newCount,
+            updatedRecords: updatedCount,
+            ignoredRecords: ignoredCount,
+            rejectedRecords: 0,
+            dateRangeCovered,
+            status: 'COMPLETADO',
+          })
+        : {
+            id: CLOUD_BATCH_ID,
+            batchId: CLOUD_BATCH_ID,
+            fileName: CLOUD_BATCH_SOURCE,
+            fileType: 'overtime',
+            importedAt: syncTime,
+            user: 'Sincronización Automática (Nube)',
+            totalRows: stampedRecords.length,
+            newRecords: newCount,
+            updatedRecords: updatedCount,
+            ignoredRecords: ignoredCount,
+            rejectedRecords: 0,
+            dateRangeCovered,
+            status: 'COMPLETADO',
+          };
+
+      await db.importBatches.put(batchItem);
+
+      return { newCount, updatedCount, ignoredCount, batchItem };
+    }
+  );
+
+  sanitizeLocalStorageCloudBatches(result.batchItem);
+
+  return result;
 }
 
 /**
@@ -659,12 +1042,120 @@ export async function deleteImportBatchTransactional(batchId: string, fileName?:
 }
 
 /**
+ * Replaces the cached Concentrado Anual overtime records in IndexedDB
+ */
+export async function replaceAnnualOvertimeTransactional(
+  records: AnnualOvertimeRecord[]
+): Promise<void> {
+  await db.transaction('rw', db.annualOvertimeRecords, async () => {
+    await db.annualOvertimeRecords.clear();
+    if (records.length > 0) {
+      await db.annualOvertimeRecords.bulkPut(records);
+    }
+  });
+}
+
+/**
+ * Replaces the cached Concentrado de Ausencias records in IndexedDB
+ */
+export async function replaceAbsenceRecordsTransactional(
+  records: AbsenceRecord[]
+): Promise<void> {
+  await db.transaction('rw', db.absenceRecords, async () => {
+    await db.absenceRecords.clear();
+    if (records.length > 0) {
+      await db.absenceRecords.bulkPut(records);
+    }
+  });
+}
+
+/**
+ * Upserts the weekly matrix (Registro_Prolongacion.xlsx) records, maintains a single fixed
+ * CLOUD_MATRIZ_BATCH_ID history item, and syncs overtime records for Semáforo Semanal.
+ */
+export async function upsertWeeklyMatrixBatchTransactional(
+  matrixRecords: WeeklyMatrixRecord[],
+  dailyOvertimeRecords: OvertimeRecord[] = [],
+  syncTime = new Date().toISOString()
+): Promise<{
+  newCount: number;
+  updatedCount: number;
+  ignoredCount: number;
+  batchItem: ImportHistoryItem;
+}> {
+  return await db.transaction(
+    'rw',
+    [db.weeklyMatrixRecords, db.overtimeRecords, db.importBatches, db.changeLog],
+    async () => {
+      // 1. Persist weekly matrix records
+      await db.weeklyMatrixRecords.clear();
+      if (matrixRecords.length > 0) {
+        await db.weeklyMatrixRecords.bulkPut(matrixRecords);
+      }
+
+      // 2. Clean old records associated with CLOUD_MATRIZ_BATCH_ID and insert new ones
+      const oldMatrizOtIds = await db.overtimeRecords
+        .filter((r) => r.importBatchId === CLOUD_MATRIZ_BATCH_ID || r.sourceFile === MATRIZ_BATCH_SOURCE)
+        .primaryKeys();
+      if (oldMatrizOtIds.length > 0) {
+        await db.overtimeRecords.bulkDelete(oldMatrizOtIds);
+      }
+
+      if (dailyOvertimeRecords.length > 0) {
+        const stamped = dailyOvertimeRecords.map((r) => ({
+          ...r,
+          importBatchId: CLOUD_MATRIZ_BATCH_ID,
+          sourceFile: MATRIZ_BATCH_SOURCE,
+        }));
+        await db.overtimeRecords.bulkPut(stamped);
+      }
+
+      // 3. Date range covered
+      const startDates = matrixRecords.map((m) => m.startDate).filter(Boolean).sort();
+      const endDates = matrixRecords.map((m) => m.endDate).filter(Boolean).sort();
+      const dateRangeCovered =
+        startDates.length > 0 && endDates.length > 0
+          ? `${startDates[0]} a ${endDates[endDates.length - 1]}`
+          : 'Periodo no especificado';
+
+      // 4. Upsert single fixed batch row in importBatches
+      const batchItem: ImportHistoryItem = {
+        id: CLOUD_MATRIZ_BATCH_ID,
+        batchId: CLOUD_MATRIZ_BATCH_ID,
+        fileName: MATRIZ_BATCH_SOURCE,
+        fileType: 'overtime',
+        importedAt: syncTime,
+        user: 'Sincronización Automática (Nube)',
+        totalRows: matrixRecords.length,
+        newRecords: matrixRecords.length,
+        updatedRecords: 0,
+        ignoredRecords: 0,
+        rejectedRecords: 0,
+        dateRangeCovered,
+        status: 'COMPLETADO',
+      };
+
+      await db.importBatches.put(batchItem);
+
+      return {
+        newCount: matrixRecords.length,
+        updatedCount: 0,
+        ignoredCount: 0,
+        batchItem,
+      };
+    }
+  );
+}
+
+/**
  * Creates a structured, schema-validated complete backup object
  */
 export async function createCompleteBackup(): Promise<BackupPayload> {
   const [
     overtimeRecords,
     attendanceRecords,
+    annualOvertimeRecords,
+    absenceRecords,
     departmentLeaders,
     reasonsCatalog,
     exceptionsCatalog,
@@ -675,6 +1166,8 @@ export async function createCompleteBackup(): Promise<BackupPayload> {
   ] = await Promise.all([
     db.overtimeRecords.toArray(),
     db.attendanceRecords.toArray(),
+    db.annualOvertimeRecords.toArray(),
+    db.absenceRecords.toArray(),
     db.leaders.toArray(),
     db.reasonsCatalog.toArray(),
     db.exceptionsCatalog.toArray(),
@@ -698,6 +1191,8 @@ export async function createCompleteBackup(): Promise<BackupPayload> {
     data: {
       overtimeRecords,
       attendanceRecords,
+      annualOvertimeRecords,
+      absenceRecords,
       departmentLeaders,
       reasonsCatalog,
       exceptionsCatalog,
@@ -730,6 +1225,8 @@ export async function restoreCompleteBackup(rawJson: unknown): Promise<{ success
     [
       db.overtimeRecords,
       db.attendanceRecords,
+      db.annualOvertimeRecords,
+      db.absenceRecords,
       db.leaders,
       db.reasonsCatalog,
       db.exceptionsCatalog,
@@ -743,6 +1240,8 @@ export async function restoreCompleteBackup(rawJson: unknown): Promise<{ success
       await Promise.all([
         db.overtimeRecords.clear(),
         db.attendanceRecords.clear(),
+        db.annualOvertimeRecords.clear(),
+        db.absenceRecords.clear(),
         db.leaders.clear(),
         db.reasonsCatalog.clear(),
         db.exceptionsCatalog.clear(),
@@ -755,6 +1254,12 @@ export async function restoreCompleteBackup(rawJson: unknown): Promise<{ success
       await Promise.all([
         db.overtimeRecords.bulkAdd(payload.data.overtimeRecords),
         db.attendanceRecords.bulkAdd(payload.data.attendanceRecords),
+        payload.data.annualOvertimeRecords
+          ? db.annualOvertimeRecords.bulkAdd(payload.data.annualOvertimeRecords)
+          : Promise.resolve(),
+        payload.data.absenceRecords
+          ? db.absenceRecords.bulkAdd(payload.data.absenceRecords)
+          : Promise.resolve(),
         db.leaders.bulkAdd(payload.data.departmentLeaders),
         db.reasonsCatalog.bulkAdd(payload.data.reasonsCatalog),
         payload.data.exceptionsCatalog ? db.exceptionsCatalog.bulkAdd(payload.data.exceptionsCatalog) : Promise.resolve(),

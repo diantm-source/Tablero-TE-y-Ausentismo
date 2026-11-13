@@ -528,3 +528,5 @@ export function formatOfficialShiftLabel(rawShift?: string, startTimeStr?: strin
 
   return '1 - Primer turno (07:00 a 15:00)';
 }
+
+export { isThirdShift } from './businessRules';

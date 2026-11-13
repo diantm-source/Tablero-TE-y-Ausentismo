@@ -344,4 +344,91 @@ describe('kpiEngine Company Presets & Filtering', () => {
     expect(kpis.punchIncidentsCount).toBe(1);
     expect(kpis.absenceRate).toBe(50.0); // 2 / 4 * 100
   });
+
+  it('filters both Overtime and Attendance reactively by collaboratorType: SINDICALIZADO', () => {
+    const filters: GlobalFilterState = {
+      ...defaultFilters,
+      collaboratorType: 'SINDICALIZADO',
+    };
+    const { filteredOvertime, filteredAttendance } = applyFilters(mockOvertime, mockAttendance, filters);
+
+    // Overtime should ONLY include syndicated employees (EMP001 Juan Perez and EMP003 Luis Hernandez)
+    expect(filteredOvertime.length).toBe(2);
+    expect(filteredOvertime.map((o) => o.employeeId)).toEqual(['EMP001', 'EMP003']);
+
+    // Attendance should ONLY include syndicated employees (EMP001 and EMP003)
+    expect(filteredAttendance.length).toBe(2);
+    expect(filteredAttendance.map((a) => a.employeeId)).toEqual(['EMP001', 'EMP003']);
+
+    // computeKPIs should reflect filtered counts and hours for syndicated only
+    const kpis = computeKPIs(mockOvertime, mockAttendance, filters, defaultThresholds);
+    expect(kpis.totalOtRequests).toBe(2);
+    expect(kpis.collaboratorsWithOtCount).toBe(2);
+    expect(kpis.totalRequestedHours).toBe(7); // 4 + 3
+    expect(kpis.totalApprovedHours).toBe(4); // 4
+    expect(kpis.totalPendingHours).toBe(3); // 3
+    expect(kpis.totalEligibleShifts).toBe(2);
+  });
+
+  it('filters both Overtime and Attendance reactively by collaboratorType: NO_SINDICALIZADO', () => {
+    const filters: GlobalFilterState = {
+      ...defaultFilters,
+      collaboratorType: 'NO_SINDICALIZADO',
+    };
+    const { filteredOvertime, filteredAttendance } = applyFilters(mockOvertime, mockAttendance, filters);
+
+    // Overtime should ONLY include non-syndicated employees (EMP002, EMP004, EMP005, EMP006)
+    expect(filteredOvertime.length).toBe(4);
+    expect(filteredOvertime.map((o) => o.employeeId)).toEqual(['EMP002', 'EMP004', 'EMP005', 'EMP006']);
+
+    // Attendance should ONLY include non-syndicated employees (EMP002, EMP004)
+    expect(filteredAttendance.length).toBe(2);
+    expect(filteredAttendance.map((a) => a.employeeId)).toEqual(['EMP002', 'EMP004']);
+
+    // computeKPIs should reflect filtered counts and hours for non-syndicated only
+    const kpis = computeKPIs(mockOvertime, mockAttendance, filters, defaultThresholds);
+    expect(kpis.totalOtRequests).toBe(4);
+    expect(kpis.collaboratorsWithOtCount).toBe(4);
+    expect(kpis.totalRequestedHours).toBe(14); // 4 + 4 + 2 + 4
+    expect(kpis.totalApprovedHours).toBe(12); // 4 + 4 + 4
+    expect(kpis.totalPendingHours).toBe(2); // 2
+    expect(kpis.totalEligibleShifts).toBe(2);
+  });
+
+  it('counts exclusively unique collaborators with horasTotales > 0 (excluding 0 hrs)', () => {
+    const customOvertime: OvertimeRecord[] = [
+      {
+        ...mockOvertime[0],
+        id: 'ot_zero_1',
+        employeeId: 'EMP_ZERO_1',
+        requestedHours: 0,
+        approvedHours: 0,
+        horasTotales: 0,
+        status: 'APROBADO',
+      },
+      {
+        ...mockOvertime[0],
+        id: 'ot_zero_2',
+        employeeId: 'EMP_ZERO_2',
+        requestedHours: 0,
+        approvedHours: 0,
+        horasTotales: 0,
+        status: 'APROBADO',
+      },
+      {
+        ...mockOvertime[0],
+        id: 'ot_active_1',
+        employeeId: 'EMP_ACTIVE_1',
+        requestedHours: 4,
+        approvedHours: 4,
+        horasTotales: 4,
+        status: 'APROBADO',
+      },
+    ];
+
+    const kpis = computeKPIs(customOvertime, [], defaultFilters, defaultThresholds);
+    // Total requests = 3, but collaboratorsWithOtCount must be 1 (only EMP_ACTIVE_1 with hours > 0)
+    expect(kpis.totalOtRequests).toBe(3);
+    expect(kpis.collaboratorsWithOtCount).toBe(1);
+  });
 });

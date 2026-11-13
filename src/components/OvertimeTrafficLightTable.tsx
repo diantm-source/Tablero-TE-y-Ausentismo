@@ -10,23 +10,48 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import {
-  OvertimeAggregationRecord,
   parseOvertimeExcel,
   NormalizedOvertimeRow,
   TrafficLightEvaluationMode,
+  TrafficLightStatus,
+  evaluateTrafficLight,
+  getTurnoBadgeClass,
 } from '../services/overtimeParser';
 import { useOvertimeAggregation } from '../hooks/useOvertimeAggregation';
-import { AttendanceRecord, OvertimeRecord } from '../types';
+import { AnnualOvertimeRecord, AttendanceRecord, OvertimeRecord, WeeklyMatrixRecord } from '../types';
 import { exportToExcel } from '../services/excelParser';
+
+export interface TrafficLightTableRow {
+  id: string;
+  employeeId: string;
+  sapId?: string;
+  nombre: string;
+  apellido?: string;
+  colaborador: string;
+  department: string;
+  tipoColaborador: 'SINDICALIZADO' | 'NO SIND.';
+  isSyndicated: boolean;
+  semana: string;
+  turno?: string;
+  horasNormales: number; // H. Extra Normal (horas puras con color)
+  horasProlongacion: number; // H. Prolongación
+  horasTotales: number; // Total Horas Extra (Normal + Prolongación)
+  semaforo: TrafficLightStatus; // ROJO (>9h), AMARILLO (7-9h), VERDE (<7h)
+  diasLaborados?: number;
+  horasAprobadas?: number;
+  horasPendientes?: number;
+}
 
 interface OvertimeTrafficLightTableProps {
   sourceData?: OvertimeRecord[] | NormalizedOvertimeRow[];
+  matrixRecords?: (WeeklyMatrixRecord | AnnualOvertimeRecord)[];
   allAttendance?: AttendanceRecord[];
   onParsedNewData?: (rows: NormalizedOvertimeRow[]) => void;
 }
 
 export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps> = ({
   sourceData,
+  matrixRecords,
   allAttendance,
   onParsedNewData,
 }) => {
@@ -37,21 +62,120 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
   const [globalFilter, setGlobalFilter] = useState('');
   const [evalMode, setEvalMode] = useState<TrafficLightEvaluationMode>('EQUIVALENCIA');
   const [sorting, setSorting] = useState<SortingState>([
-    { id: 'equivalenciaHoraria', desc: true },
+    { id: 'horasTotales', desc: true },
   ]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Usar los registros locales si se importó un archivo en esta vista, sino usar sourceData
-  const activeData = localParsedRows !== null ? localParsedRows : (sourceData || []);
+  // Determinar si opera bajo el conector de la Matriz Semanal (Formato A) o por archivo local/legacy
+  const isMatrixMode = Boolean(
+    localParsedRows === null && matrixRecords && matrixRecords.length > 0
+  );
 
-  const { aggregatedData, kpis } = useOvertimeAggregation(activeData, allAttendance, evalMode);
+  // Modo Legacy / Upload local
+  const activeLegacyData = localParsedRows !== null ? localParsedRows : (sourceData || []);
+  const { aggregatedData: legacyAggregated, kpis: legacyKpis } = useOvertimeAggregation(
+    activeLegacyData,
+    allAttendance,
+    evalMode
+  );
+
+  // Filas normalizadas según la fuente activa
+  const allRows: TrafficLightTableRow[] = useMemo(() => {
+    if (isMatrixMode && matrixRecords) {
+      return matrixRecords.map((m) => {
+        const hNorm = m.horasNormales !== undefined ? m.horasNormales : (m.hours || 0);
+        const hProl = m.horasProlongacion !== undefined ? m.horasProlongacion : 0;
+        const hTot = m.horasTotales !== undefined ? m.horasTotales : (hNorm + hProl);
+        const sem = evaluateTrafficLight(hTot);
+
+        return {
+          id: m.id || `${m.employeeId}_${m.week}`,
+          employeeId: m.employeeId,
+          sapId: m.sapId,
+          nombre: m.employeeName,
+          apellido: '',
+          colaborador: m.employeeName,
+          department: m.department,
+          tipoColaborador: 'SINDICALIZADO' as const,
+          isSyndicated: true,
+          semana: m.week,
+          turno: m.turno || 'Sin Turno',
+          horasNormales: Math.round(hNorm * 10) / 10,
+          horasProlongacion: Math.round(hProl * 10) / 10,
+          horasTotales: Math.round(hTot * 10) / 10,
+          semaforo: sem,
+        };
+      });
+    }
+
+    // Modo Legacy / BioTime
+    return legacyAggregated.map((r) => ({
+      id: r.id,
+      employeeId: r.id,
+      nombre: r.nombre,
+      apellido: r.apellido,
+      colaborador: r.colaborador,
+      department: r.departamento,
+      tipoColaborador: r.tipoColaborador,
+      isSyndicated: r.isSyndicated,
+      semana: r.semana,
+      turno: r.turno,
+      horasNormales: r.horasBase,
+      horasProlongacion: r.horasAdicionalesPorDia,
+      horasTotales: evalMode === 'EQUIVALENCIA' ? r.equivalenciaHoraria : r.horasBase,
+      semaforo: r.semaforo,
+      diasLaborados: r.diasLaborados,
+      horasAprobadas: r.horasAprobadas,
+      horasPendientes: r.horasPendientes,
+    }));
+  }, [isMatrixMode, matrixRecords, legacyAggregated, evalMode]);
+
+  // KPIs unificados
+  const currentKPIs = useMemo(() => {
+    if (isMatrixMode) {
+      let rCount = 0;
+      let aCount = 0;
+      let vCount = 0;
+      let totNorm = 0;
+      let totProl = 0;
+      let totH = 0;
+
+      for (const row of allRows) {
+        if (row.semaforo === 'ROJO') rCount++;
+        else if (row.semaforo === 'AMARILLO') aCount++;
+        else vCount++;
+
+        totNorm += row.horasNormales;
+        totProl += row.horasProlongacion;
+        totH += row.horasTotales;
+      }
+
+      return {
+        totalColaboradores: allRows.length,
+        sindicalizadosCount: allRows.length,
+        noSindicalizadosCount: 0,
+        rojoCount: rCount,
+        amarilloCount: aCount,
+        verdeCount: vCount,
+        totalHorasAprobadas: Math.round(totNorm * 10) / 10,
+        totalHorasPendientes: 0,
+        totalAcumulado: Math.round(totNorm * 10) / 10,
+        totalEquivalenciaHoraria: Math.round(totH * 10) / 10,
+        totalDiasLaborados: allRows.length,
+        totalDiasTercerTurno: 0,
+        totalHorasProlongacion: Math.round(totProl * 10) / 10,
+      };
+    }
+
+    return legacyKpis;
+  }, [isMatrixMode, allRows, legacyKpis]);
 
   // Filtrado por la pestaña del semáforo seleccionada
   const filteredData = useMemo(() => {
-    if (trafficFilter === 'ALL') return aggregatedData;
-    return aggregatedData.filter((item) => item.semaforo === trafficFilter);
-  }, [aggregatedData, trafficFilter]);
+    if (trafficFilter === 'ALL') return allRows;
+    return allRows.filter((item) => item.semaforo === trafficFilter);
+  }, [allRows, trafficFilter]);
 
   // Manejo de carga directa de archivo Excel BioTime de Tiempo Extra
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,314 +215,165 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
 
   const handleExportData = () => {
     const exportRows = filteredData.map((r) => ({
-      'ID del Empleado': r.id,
-      Nombre: r.nombre,
-      Apellidos: r.apellido || '(Sin apellido)',
-      'Colaborador Completo': r.colaborador,
-      Departamento: r.departamento,
-      'Semana ISO': r.semana,
-      Turno: r.turno,
-      'Fecha Último Registro': r.ultimoRegistroFecha,
-      'Horario Último Registro': r.ultimoRegistroHorario,
-      'Horas Último Registro': r.ultimoRegistroHoras,
-      'Días Laborados': r.diasLaborados,
-      'TE Nominal Aprobado (hrs)': r.horasAprobadas,
-      'TE Nominal Pendiente (hrs)': r.horasPendientes,
-      'TE Acumulado Base H_base (hrs)': r.horasBase,
-      'Bono Días Laborados H_dias (hrs)': r.horasAdicionalesPorDia,
-      'Equivalencia Horaria H_equiv (hrs)': r.equivalenciaHoraria,
-      'Semáforo Base': r.semaforoBase,
-      'Semáforo Equivalencia': r.semaforoEquiv,
-      'Semáforo Activo':
+      'ID del Empleado': r.employeeId,
+      'ID SAP': r.sapId || r.employeeId,
+      Colaborador: r.colaborador,
+      Departamento: r.department,
+      Tipo: r.tipoColaborador,
+      Sindicalizado: r.isSyndicated ? 'SÍ' : 'NO',
+      Semana: r.semana,
+      'H. Extra Normal (hrs)': r.horasNormales,
+      'H. Prolongación (hrs)': r.horasProlongacion,
+      'Total Horas Extra (hrs)': r.horasTotales,
+      Semáforo:
         r.semaforo === 'ROJO'
           ? 'ROJO (> 9h)'
           : r.semaforo === 'AMARILLO'
           ? 'AMARILLO (7 - 9h)'
           : 'VERDE (< 7h)',
     }));
-    exportToExcel(exportRows, `Semaforo_TE_Equivalencia_${trafficFilter}_${evalMode}`);
+    exportToExcel(exportRows, `Semaforo_TE_Matriz_${trafficFilter}`);
   };
 
-  // Badge para el turno oficial conforme al catálogo de horarios de la empresa
-  const renderShiftBadge = (turno: string) => {
-    const upper = turno.toUpperCase();
-    let badgeClass = 'bg-slate-100 text-slate-800 border-slate-200';
-    let icon = <i className="bi bi-clock-fill text-slate-500 text-xs"></i>;
-
-    if (
-      upper.startsWith('1 ') ||
-      upper.startsWith('1 -') ||
-      upper.includes('PRIMER TURNO') ||
-      upper.includes('1S') ||
-      upper.includes('CMN') ||
-      upper.includes('12M')
-    ) {
-      badgeClass = 'bg-sky-50 text-sky-800 border-sky-300';
-      icon = <i className="bi bi-sun-fill text-amber-500 text-xs"></i>;
-    } else if (
-      upper.startsWith('2 ') ||
-      upper.startsWith('2 -') ||
-      upper.includes('SEGUNDO TURNO') ||
-      upper.includes('2S') ||
-      upper.startsWith('4 ') ||
-      upper.startsWith('4 -') ||
-      upper.includes('CUARTO')
-    ) {
-      badgeClass = 'bg-amber-50 text-amber-800 border-amber-300';
-      icon = <i className="bi bi-cloud-sun-fill text-amber-600 text-xs"></i>;
-    } else if (
-      upper.startsWith('3 ') ||
-      upper.startsWith('3 -') ||
-      upper.includes('TERCER TURNO') ||
-      upper.includes('3S') ||
-      upper.includes('12V')
-    ) {
-      badgeClass = 'bg-indigo-50 text-indigo-800 border-indigo-300';
-      icon = <i className="bi bi-moon-stars-fill text-indigo-500 text-xs"></i>;
-    } else if (
-      upper.includes('CENTRAL') ||
-      upper.startsWith('C ') ||
-      upper.startsWith('C -') ||
-      upper.startsWith('CA') ||
-      upper.startsWith('CM') ||
-      upper.startsWith('CB') ||
-      upper.startsWith('CE')
-    ) {
-      badgeClass = 'bg-teal-50 text-teal-800 border-teal-300';
-      icon = <i className="bi bi-building text-teal-600 text-xs"></i>;
-    } else if (
-      upper.includes('DESCANSO') ||
-      upper.startsWith('D ') ||
-      upper.startsWith('D -') ||
-      upper.includes('FESTIVO') ||
-      upper.startsWith('F ')
-    ) {
-      badgeClass = 'bg-emerald-50 text-emerald-800 border-emerald-300';
-      icon = <i className="bi bi-calendar-event text-emerald-600 text-xs"></i>;
-    } else if (upper.includes('CUBRE') || upper.startsWith('CT')) {
-      badgeClass = 'bg-purple-50 text-purple-800 border-purple-300';
-      icon = <i className="bi bi-arrow-left-right text-purple-600 text-xs"></i>;
-    }
-
-    return (
-      <span
-        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold border ${badgeClass} max-w-[210px] truncate`}
-        title={turno}
-      >
-        {icon}
-        <span className="truncate">{turno}</span>
-      </span>
-    );
-  };
-
-  // Definición de columnas de TanStack Table ordenadas con los nuevos requerimientos consecutivos
-  const columns = useMemo<ColumnDef<OvertimeAggregationRecord>[]>(
+  // Definición de columnas de TanStack Table ordenadas con los nuevos requerimientos
+  const columns = useMemo<ColumnDef<TrafficLightTableRow>[]>(
     () => [
       {
-        accessorKey: 'id',
+        accessorKey: 'employeeId',
         header: 'ID',
-        cell: (info) => (
-          <span className="font-mono font-bold text-slate-800 text-xs">
-            {info.getValue() as string}
-          </span>
+        cell: ({ row }) => (
+          <div className="flex flex-col">
+            <span className="font-mono font-bold text-slate-800 text-xs">
+              {row.original.employeeId}
+            </span>
+            {row.original.sapId && row.original.sapId !== row.original.employeeId && (
+              <span className="font-mono text-[10px] text-slate-400">
+                SAP: {row.original.sapId}
+              </span>
+            )}
+          </div>
         ),
       },
       {
-        accessorKey: 'nombre',
-        header: 'Nombre',
-        cell: (info) => (
+        accessorKey: 'colaborador',
+        header: 'Colaborador',
+        cell: ({ row }) => (
           <div className="font-semibold text-slate-900 text-xs flex items-center gap-1.5">
             <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[10px] shrink-0">
-              {((info.getValue() as string) || 'E').charAt(0).toUpperCase()}
+              {(row.original.colaborador || 'E').charAt(0).toUpperCase()}
             </span>
-            <span className="truncate max-w-[150px]" title={info.getValue() as string}>
-              {(info.getValue() as string) || 'Sin Nombre'}
+            <span className="truncate max-w-[170px]" title={row.original.colaborador}>
+              {row.original.colaborador || 'Sin Nombre'}
             </span>
           </div>
         ),
       },
       {
-        accessorKey: 'apellido',
-        header: 'Apellidos',
-        cell: (info) => {
-          const val = info.getValue() as string;
-          return val ? (
-            <span className="font-semibold text-slate-800 text-xs truncate max-w-[170px] block" title={val}>
-              {val}
-            </span>
-          ) : (
-            <span className="text-[11px] italic text-slate-400">Sin apellido</span>
-          );
-        },
-      },
-      {
-        accessorKey: 'departamento',
+        accessorKey: 'department',
         header: 'Departamento',
-        cell: (info) => (
+        cell: ({ row }) => (
           <span
             className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200 inline-block max-w-[150px] truncate"
-            title={info.getValue() as string}
+            title={row.original.department}
           >
-            {info.getValue() as string}
+            {row.original.department}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'tipoColaborador',
+        header: 'Tipo',
+        cell: ({ row }) => (
+          <span
+            className={`px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${
+              row.original.isSyndicated
+                ? 'bg-blue-100 text-blue-800 border-blue-300'
+                : 'bg-slate-100 text-slate-600 border-slate-300'
+            }`}
+            title={
+              row.original.isSyndicated
+                ? 'Colaborador Sindicalizado: Aplica compensación por prolongación de jornada'
+                : 'Colaborador No Sindicalizado: No aplica prolongación de jornada'
+            }
+          >
+            {row.original.tipoColaborador}
           </span>
         ),
       },
       {
         accessorKey: 'semana',
         header: 'Semana',
-        cell: (info) => (
+        cell: ({ row }) => (
           <span className="font-mono text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-            {info.getValue() as string}
+            {row.original.semana}
           </span>
         ),
       },
       {
         accessorKey: 'turno',
         header: 'Turno',
-        cell: (info) => renderShiftBadge((info.getValue() as string) || '1 - Primer turno (07:00 a 15:00)'),
-      },
-      {
-        id: 'ultimoRegistro',
-        header: 'Último Registro TE',
-        cell: ({ row }) => (
-          <div
-            className="flex flex-col text-xs max-w-[170px]"
-            title={`Último cálculo de horas: ${row.original.ultimoRegistroCompleto}`}
-          >
-            <span className="font-semibold text-slate-800 flex items-center gap-1">
-              <i className="bi bi-calendar-check text-blue-600 text-xs"></i>
-              {row.original.ultimoRegistroFecha || 'Sin fecha'}
-            </span>
-            <span className="text-[11px] font-mono text-slate-500 mt-0.5">
-              {row.original.ultimoRegistroHorario} ({row.original.ultimoRegistroHoras.toFixed(1)}h)
-            </span>
-          </div>
-        ),
-      },
-      // 1. Días Laborados
-      {
-        accessorKey: 'diasLaborados',
-        header: 'Días Laborados',
         cell: ({ row }) => {
-          const dias = row.original.diasLaborados;
-          const bono = row.original.horasAdicionalesPorDia;
+          const t = row.original.turno || 'Sin Turno';
           return (
-            <div
-              className="flex flex-col text-xs"
-              title={`Días activos en la semana: ${dias} días (+${bono.toFixed(1)} hrs adicionadas por equivalencia)`}
+            <span
+              className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border whitespace-nowrap ${getTurnoBadgeClass(
+                t
+              )}`}
+              title={`Turno: ${t}`}
             >
-              <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 w-fit">
-                <i className="bi bi-calendar2-week text-blue-600 text-[11px]"></i>
-                {dias} {dias === 1 ? 'día' : 'días'}
-              </span>
-              <span className="text-[10px] text-indigo-600 font-semibold font-mono mt-0.5">
-                +{bono.toFixed(1)} hrs bono
-              </span>
-            </div>
-          );
-        },
-      },
-      // 2. TE Nominal Aprobado
-      {
-        accessorKey: 'horasAprobadas',
-        header: 'TE Nominal Aprobado',
-        cell: (info) => (
-          <span className="font-bold text-emerald-600 text-xs font-mono">
-            {(info.getValue() as number).toFixed(1)} hrs
-          </span>
-        ),
-      },
-      // 3. TE Nominal Pendiente
-      {
-        accessorKey: 'horasPendientes',
-        header: 'TE Nominal Pendiente',
-        cell: (info) => {
-          const val = info.getValue() as number;
-          return (
-            <span className={`font-bold text-xs font-mono ${val > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
-              {val.toFixed(1)} hrs
+              {t}
             </span>
           );
         },
       },
-      // 4. TE Acumulado (H_base)
       {
-        accessorKey: 'horasBase',
-        header: () => (
-          <div className="flex flex-col items-start">
-            <span className="whitespace-nowrap">TE Acumulado (H_base)</span>
-            {evalMode === 'BASE' && (
-              <span className="text-[9px] font-black text-blue-600 uppercase tracking-tight flex items-center gap-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-                Semáforo Activo
-              </span>
-            )}
-          </div>
-        ),
-        cell: (info) => (
-          <span className="font-bold text-slate-900 text-xs font-mono bg-slate-50 px-2 py-1 rounded border border-slate-200 inline-block">
-            {(info.getValue() as number).toFixed(1)} hrs
+        accessorKey: 'horasNormales',
+        header: 'H. Extra Normal',
+        cell: ({ row }) => (
+          <span
+            className="font-mono font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded border border-sky-200 text-xs inline-block text-right"
+            title="Suma de horas extra puras (celdas con color de relleno)"
+          >
+            {row.original.horasNormales.toFixed(1)} hrs
           </span>
         ),
       },
-      // 5. Equivalencia Horaria (H_equiv)
       {
-        accessorKey: 'equivalenciaHoraria',
-        header: () => (
-          <div className="flex flex-col items-start">
-            <span className="whitespace-nowrap">Equivalencia Horaria (H_equiv)</span>
-            {evalMode === 'EQUIVALENCIA' && (
-              <span className="text-[9px] font-black text-purple-600 uppercase tracking-tight flex items-center gap-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-600"></span>
-                Semáforo Activo
-              </span>
-            )}
-          </div>
+        accessorKey: 'horasProlongacion',
+        header: 'H. Prolongación',
+        cell: ({ row }) => (
+          <span
+            className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded border border-indigo-200 text-xs inline-block text-right"
+            title="Suma de horas de prolongación de jornada registradas"
+          >
+            {row.original.horasProlongacion.toFixed(1)} hrs
+          </span>
         ),
-        cell: ({ row }) => {
-          const val = row.original.equivalenciaHoraria;
-          const status = row.original.semaforoEquiv;
-
-          let badgeColor = 'bg-emerald-50 text-emerald-800 border-emerald-300';
-          let dotColor = 'bg-emerald-500';
-          if (status === 'ROJO') {
-            badgeColor = 'bg-rose-50 text-rose-800 border-rose-300';
-            dotColor = 'bg-rose-500 animate-pulse';
-          } else if (status === 'AMARILLO') {
-            badgeColor = 'bg-amber-50 text-amber-800 border-amber-300';
-            dotColor = 'bg-amber-500';
-          }
-
-          return (
-            <div className="flex items-center gap-2">
-              <span className="font-black text-indigo-950 text-xs font-mono bg-indigo-50/80 px-2.5 py-1 rounded-md border border-indigo-200 shadow-xs">
-                {val.toFixed(1)} hrs
-              </span>
-              <span
-                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeColor}`}
-                title={`Equivalencia: ${val.toFixed(1)} hrs | Semáforo: ${status}`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`}></span>
-                {status}
-              </span>
-            </div>
-          );
-        },
       },
-      // Semáforo Activo (Columna de Control Legal)
+      {
+        accessorKey: 'horasTotales',
+        header: 'Total Horas Extra',
+        cell: ({ row }) => (
+          <span
+            className="font-mono font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded border border-slate-300 text-xs inline-block text-right shadow-2xs"
+            title={`Suma exacta: ${row.original.horasNormales.toFixed(1)} hrs normal + ${row.original.horasProlongacion.toFixed(1)} hrs prolongación`}
+          >
+            {row.original.horasTotales.toFixed(1)} hrs
+          </span>
+        ),
+      },
       {
         accessorKey: 'semaforo',
         header: 'Semáforo',
         cell: ({ row }) => {
           const status = row.original.semaforo;
-          const evaluatedOn = evalMode === 'EQUIVALENCIA' ? 'H_equiv' : 'H_base';
-          const hoursValue = evalMode === 'EQUIVALENCIA' ? row.original.equivalenciaHoraria : row.original.horasBase;
+          const tot = row.original.horasTotales;
 
           if (status === 'ROJO') {
             return (
               <span
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-500 shadow-xs"
-                title={`Semáforo evaluado sobre ${evaluatedOn}: ${hoursValue.toFixed(1)} hrs (> 9h)`}
+                title={`Semáforo legal: ${tot.toFixed(1)} hrs (> 9h)`}
               >
                 <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
                 <span>Rojo (&gt; 9h)</span>
@@ -410,7 +385,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
             return (
               <span
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-500 shadow-xs"
-                title={`Semáforo evaluado sobre ${evaluatedOn}: ${hoursValue.toFixed(1)} hrs (7 - 9h)`}
+                title={`Semáforo legal: ${tot.toFixed(1)} hrs (7 - 9h)`}
               >
                 <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                 <span>Amarillo (7 - 9h)</span>
@@ -421,7 +396,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
           return (
             <span
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-500 shadow-xs"
-              title={`Semáforo evaluado sobre ${evaluatedOn}: ${hoursValue.toFixed(1)} hrs (< 7h)`}
+              title={`Semáforo legal: ${tot.toFixed(1)} hrs (< 7h)`}
             >
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               <span>Verde (&lt; 7h)</span>
@@ -430,7 +405,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
         },
       },
     ],
-    [evalMode]
+    []
   );
 
   const table = useReactTable({
@@ -476,10 +451,10 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
             </span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-black text-rose-600">{kpis.rojoCount}</span>
+            <span className="text-2xl font-black text-rose-600">{currentKPIs.rojoCount}</span>
             <span className="text-xs text-slate-500">
-              {kpis.totalColaboradores > 0
-                ? `${Math.round((kpis.rojoCount / kpis.totalColaboradores) * 100)}% de colaboradores`
+              {currentKPIs.totalColaboradores > 0
+                ? `${Math.round((currentKPIs.rojoCount / currentKPIs.totalColaboradores) * 100)}% de selección`
                 : '0%'}
             </span>
           </div>
@@ -504,10 +479,10 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
             </span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-black text-amber-600">{kpis.amarilloCount}</span>
+            <span className="text-2xl font-black text-amber-600">{currentKPIs.amarilloCount}</span>
             <span className="text-xs text-slate-500">
-              {kpis.totalColaboradores > 0
-                ? `${Math.round((kpis.amarilloCount / kpis.totalColaboradores) * 100)}% de colaboradores`
+              {currentKPIs.totalColaboradores > 0
+                ? `${Math.round((currentKPIs.amarilloCount / currentKPIs.totalColaboradores) * 100)}% de selección`
                 : '0%'}
             </span>
           </div>
@@ -532,10 +507,10 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
             </span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-black text-emerald-600">{kpis.verdeCount}</span>
+            <span className="text-2xl font-black text-emerald-600">{currentKPIs.verdeCount}</span>
             <span className="text-xs text-slate-500">
-              {kpis.totalColaboradores > 0
-                ? `${Math.round((kpis.verdeCount / kpis.totalColaboradores) * 100)}% de colaboradores`
+              {currentKPIs.totalColaboradores > 0
+                ? `${Math.round((currentKPIs.verdeCount / currentKPIs.totalColaboradores) * 100)}% de selección`
                 : '0%'}
             </span>
           </div>
@@ -548,30 +523,35 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
               Horas Acumuladas
             </span>
             <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-100 text-blue-800">
-              {kpis.totalColaboradores} colaboradores
+              {currentKPIs.totalColaboradores} colaboradores
             </span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
             <div className="flex flex-col">
-              <span className="text-xl font-black text-indigo-900" title="Total con Equivalencia Horaria">
-                {kpis.totalEquivalenciaHoraria.toFixed(1)}h <span className="text-xs font-normal text-slate-500">(Equiv)</span>
+              <span className="text-xl font-black text-indigo-900" title="Total Horas Extra">
+                {currentKPIs.totalEquivalenciaHoraria.toFixed(1)}h <span className="text-xs font-normal text-slate-500">(Total TE)</span>
               </span>
-              <span className="text-xs font-semibold text-slate-600" title="Total TE Nominal Base">
-                {kpis.totalAcumulado.toFixed(1)}h base
+              <span className="text-xs font-semibold text-slate-600" title="Horas Normales">
+                {currentKPIs.totalAcumulado.toFixed(1)}h Normales
               </span>
+              {currentKPIs.totalHorasProlongacion > 0 && (
+                <span className="text-[10px] text-indigo-600 font-semibold font-mono">
+                  +{currentKPIs.totalHorasProlongacion.toFixed(1)}h Prolongación
+                </span>
+              )}
             </div>
             <div className="text-[11px] text-right text-slate-500">
-              <span className="text-emerald-600 font-semibold">{kpis.totalHorasAprobadas.toFixed(0)}h Aprob.</span>
-              {' / '}
-              <span className="text-amber-600 font-semibold">{kpis.totalHorasPendientes.toFixed(0)}h Pend.</span>
+              <span className="text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                100% SINDICALIZADO
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Control Bar: Excel Upload, Evaluation Mode Toggle, Filter Tabs & Export */}
+      {/* Control Bar: Excel Upload, Filter Tabs & Export */}
       <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-3">
-        {/* Left Side: Filter Tabs & Eval Mode Toggle */}
+        {/* Left Side: Filter Tabs */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Traffic Filter Tabs */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
@@ -584,7 +564,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Todos ({aggregatedData.length})
+              Todos ({allRows.length})
             </button>
             <button
               type="button"
@@ -596,7 +576,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-              Rojo ({kpis.rojoCount})
+              Rojo ({currentKPIs.rojoCount})
             </button>
             <button
               type="button"
@@ -608,7 +588,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-              Amarillo ({kpis.amarilloCount})
+              Amarillo ({currentKPIs.amarilloCount})
             </button>
             <button
               type="button"
@@ -620,43 +600,47 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              Verde ({kpis.verdeCount})
+              Verde ({currentKPIs.verdeCount})
             </button>
           </div>
 
-          {/* Toggle de Política de Semáforo: Equivalencia vs Nominal Base */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
-            <span className="text-slate-600 font-semibold px-2 flex items-center gap-1 text-[11px]">
-              <i className="bi bi-sliders2 text-blue-600"></i>
-              <span>Semáforo por:</span>
+          {isMatrixMode && (
+            <span className="px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+              <i className="bi bi-file-earmark-spreadsheet-fill text-emerald-600"></i>
+              <span>Matriz Semanal Activa</span>
             </span>
-            <button
-              type="button"
-              onClick={() => setEvalMode('EQUIVALENCIA')}
-              className={`px-2.5 py-1 rounded-md font-bold transition-all text-xs flex items-center gap-1.5 ${
-                evalMode === 'EQUIVALENCIA'
-                  ? 'bg-purple-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-              }`}
-              title="Semáforo evalúa sobre H_equiv = H_base + (Días Laborados × 0.5h)"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-300"></span>
-              <span>Equivalencia (H_equiv)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setEvalMode('BASE')}
-              className={`px-2.5 py-1 rounded-md font-bold transition-all text-xs flex items-center gap-1.5 ${
-                evalMode === 'BASE'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-              }`}
-              title="Semáforo evalúa sobre TE Nominal Acumulado H_base (Horas extra puras)"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-300"></span>
-              <span>Nominal Base (H_base)</span>
-            </button>
-          </div>
+          )}
+
+          {!isMatrixMode && (
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
+              <span className="text-slate-600 font-semibold px-2 flex items-center gap-1 text-[11px]">
+                <i className="bi bi-sliders2 text-blue-600"></i>
+                <span>Semáforo por:</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setEvalMode('EQUIVALENCIA')}
+                className={`px-2.5 py-1 rounded-md font-bold transition-all text-xs flex items-center gap-1.5 ${
+                  evalMode === 'EQUIVALENCIA'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+              >
+                <span>Equivalencia</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEvalMode('BASE')}
+                className={`px-2.5 py-1 rounded-md font-bold transition-all text-xs flex items-center gap-1.5 ${
+                  evalMode === 'BASE'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+              >
+                <span>Base Nominal</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Action Buttons: Direct File Upload & Export */}
@@ -720,7 +704,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
               type="text"
               value={globalFilter ?? ''}
               onChange={(e) => setGlobalFilter(e.target.value)}
-              placeholder="Buscar por colaborador, apellido, ID, depto, semana o turno..."
+              placeholder="Buscar por colaborador, ID, SAP, depto o semana..."
               className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-blue-500 shadow-xs"
             />
           </div>
