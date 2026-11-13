@@ -84,11 +84,11 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           {/* Brand Logo */}
-          <div className="h-8 sm:h-10 flex items-center shrink-0">
+          <div className="h-8 sm:h-10 w-8 sm:w-10 flex items-center justify-center shrink-0">
             <img
               src={`${import.meta.env.BASE_URL}logo.png`}
               alt="Logo"
-              className="h-8 sm:h-10 w-auto max-w-[130px] object-contain rounded-lg bg-white/95 p-1 shadow-sm border border-slate-700/50"
+              className="h-8 sm:h-10 w-8 sm:w-10 object-contain rounded-lg bg-white/95 p-1 shadow-sm border border-slate-700/50"
             />
           </div>
 
@@ -98,13 +98,6 @@ export const Header: React.FC<HeaderProps> = ({
               <h1 className="text-sm sm:text-lg md:text-xl font-bold tracking-tight text-white truncate">
                 Panel de Control de Ausentismo y TE
               </h1>
-              <span
-                className="hidden sm:inline-flex text-[10px] sm:text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-950/90 text-emerald-300 border border-emerald-600/60 items-center gap-1.5 shadow-2xs"
-                title="Archivo matriz sincronizado en el tablero"
-              >
-                <i className="bi bi-file-earmark-spreadsheet-fill text-emerald-400"></i>
-                <span className="truncate">Google Sheets (Nube) + 'Registro_Prolongacion.xlsx'</span>
-              </span>
             </div>
 
             <div className="hidden sm:flex items-center gap-3 text-xs text-slate-300 mt-0.5 flex-wrap">
@@ -116,22 +109,6 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                 ) : (
                   <span className="text-slate-400">Sin datos cargados</span>
-                )}
-              </span>
-              <span className="text-slate-600">•</span>
-              <span className="flex items-center gap-1">
-                <i className="bi bi-funnel text-blue-400"></i>
-                {filteredRecordsCount ? (
-                  <span>
-                    <strong className="text-white">{filteredRecordsCount.ot}</strong>
-                    <span className="text-slate-400">/{totalRecordsCount.ot}</span> reg. TE |{' '}
-                    <strong className="text-white">{filteredRecordsCount.att}</strong>
-                    <span className="text-slate-400">/{totalRecordsCount.att}</span> reg. Asistencia
-                  </span>
-                ) : (
-                  <span>
-                    {totalRecordsCount.ot} reg. TE | {totalRecordsCount.att} reg. Asistencia
-                  </span>
                 )}
               </span>
               <span className="text-slate-600">•</span>
@@ -220,20 +197,24 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Mobile-only secondary info bar */}
-      <div className="flex sm:hidden items-center justify-between gap-2 text-[11px] text-slate-300 mt-1.5 pt-1.5 border-t border-slate-800/80">
-        <span className="truncate">
-          {filteredRecordsCount ? (
-            <span>
-              <strong className="text-white">{filteredRecordsCount.ot}</strong> TE | <strong className="text-white">{filteredRecordsCount.att}</strong> Asist.
+      {(dateRange || syncLabel) && (
+        <div className="flex sm:hidden items-center justify-between gap-2 text-[11px] text-slate-300 mt-1.5 pt-1.5 border-t border-slate-800/80">
+          <span className="truncate">
+            {dateRange ? (
+              <span>
+                Periodo: <strong>{dateRange.start}</strong> a <strong>{dateRange.end}</strong>
+              </span>
+            ) : (
+              <span className="text-slate-400">Sin datos cargados</span>
+            )}
+          </span>
+          {syncLabel && (
+            <span className="text-slate-400 text-[10px] shrink-0 truncate max-w-[150px]">
+              Sync: {syncLabel.split(',')[0]}
             </span>
-          ) : (
-            <span>{totalRecordsCount.ot} TE | {totalRecordsCount.att} Asist.</span>
           )}
-        </span>
-        <span className="text-slate-400 text-[10px] shrink-0 truncate max-w-[150px]">
-          {syncLabel ? `Sync: ${syncLabel.split(',')[0]}` : ''}
-        </span>
-      </div>
+        </div>
+      )}
     </header>
   );
 };
