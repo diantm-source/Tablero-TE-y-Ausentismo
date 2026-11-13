@@ -32,6 +32,7 @@ import {
   DEFAULT_THRESHOLDS,
   INITIAL_LEADERS,
   OFFICIAL_REASONS_CATALOG,
+  PrecalculatedCatalogs,
 } from './db';
 import { BackupPayload } from '../schemas';
 
@@ -45,6 +46,7 @@ export {
   DEFAULT_THRESHOLDS,
   INITIAL_LEADERS,
   OFFICIAL_REASONS_CATALOG,
+  type PrecalculatedCatalogs,
 };
 
 export class AppStorage {
@@ -240,6 +242,26 @@ export class AppStorage {
     });
   }
 
+  static async getPrecalculatedCatalogs(): Promise<PrecalculatedCatalogs | null> {
+    const entry = await db.dashboardConfig.get('precalculated_catalogs');
+    if (entry && entry.value) {
+      return entry.value as PrecalculatedCatalogs;
+    }
+    return null;
+  }
+
+  static async savePrecalculatedCatalogs(catalogs: PrecalculatedCatalogs): Promise<void> {
+    await db.dashboardConfig.put({
+      key: 'precalculated_catalogs',
+      value: catalogs,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  static async clearPrecalculatedCatalogs(): Promise<void> {
+    await db.dashboardConfig.delete('precalculated_catalogs');
+  }
+
   static async getSheetsUrl(): Promise<string | null> {
     const entry = await db.dashboardConfig.get('sheetsCsvUrl');
     if (entry && typeof entry.value === 'string') {
@@ -358,9 +380,11 @@ export class AppStorage {
       db.attendanceRecords.clear(),
       db.annualOvertimeRecords.clear(),
       db.absenceRecords.clear(),
+      db.weeklyMatrixRecords.clear(),
       db.auditIncidents.clear(),
       db.importBatches.clear(),
       db.changeLog.clear(),
+      db.dashboardConfig.delete('precalculated_catalogs'),
     ]);
   }
 

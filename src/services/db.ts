@@ -73,6 +73,19 @@ export interface DashboardConfigEntity {
   updatedAt: string;
 }
 
+export interface PrecalculatedCatalogs {
+  departmentToLeader: Record<string, string>;
+  leaderToDepartments: Record<string, string[]>;
+  leadersList: string[];
+  departmentsList: string[];
+  availableWeeks: string[];
+  availableMonths: string[];
+  minDate: string;
+  maxDate: string;
+  recordsCount: number;
+  calculatedAt: string;
+}
+
 export class BioTimeDatabase extends Dexie {
   companies!: Table<CompanyEntity, string>;
   departments!: Table<DepartmentEntity, string>;

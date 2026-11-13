@@ -17,6 +17,24 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(import.meta.dirname, './src'),
       },
     },
+    build: {
+      chunkSizeWarningLimit: 1200,
+      rollupOptions: {
+        output: {
+          manualChunks(id: string) {
+            if (id.includes('node_modules/xlsx')) {
+              return 'vendor-xlsx';
+            }
+            if (id.includes('node_modules/recharts')) {
+              return 'vendor-recharts';
+            }
+            if (id.includes('node_modules/lucide-react')) {
+              return 'vendor-icons';
+            }
+          },
+        },
+      },
+    },
     test: {
       globals: true,
       environment: 'node',

@@ -35,6 +35,21 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
   hideCollapseButton = false,
   leaderToDeptMap,
 }) => {
+  const [localSearchTerm, setLocalSearchTerm] = React.useState(filters.searchTerm);
+
+  // Sincronizar el estado local cuando filters.searchTerm cambie externamente (ej. restablecer)
+  React.useEffect(() => {
+    setLocalSearchTerm(filters.searchTerm);
+  }, [filters.searchTerm]);
+
+  // Debounce de 250ms para evitar recalcular 42,000+ registros en cada pulsación
+  React.useEffect(() => {
+    if (localSearchTerm === filters.searchTerm) return;
+    const timer = setTimeout(() => {
+      onChangeFilters({ searchTerm: localSearchTerm });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [localSearchTerm, filters.searchTerm, onChangeFilters]);
   return (
     <div
       className={`bg-slate-900/95 transition-all duration-300 flex flex-col shrink-0 text-slate-200 z-10 overflow-hidden ${
@@ -236,8 +251,8 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                 <i className="bi bi-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
                 <input
                   type="text"
-                  value={filters.searchTerm}
-                  onChange={(e) => onChangeFilters({ searchTerm: e.target.value })}
+                  value={localSearchTerm}
+                  onChange={(e) => setLocalSearchTerm(e.target.value)}
                   placeholder="Nombre, ID, Motivo..."
                   className="w-full pl-8 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-xs text-xs"
                 />

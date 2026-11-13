@@ -1025,12 +1025,32 @@ export function parseWeeklyMatrixWorkbook(
   const DAY_NAMES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'] as const;
 
   for (const sheetName of workbook.SheetNames) {
+    // 1. Descartar de inmediato hojas auxiliares evidentes por nombre antes de decodificar celdas
+    const sNameLower = sheetName.trim().toLowerCase();
+    if (
+      sNameLower.startsWith('hoja') ||
+      sNameLower.startsWith('sheet') ||
+      sNameLower.includes('resumen') ||
+      sNameLower.includes('config') ||
+      sNameLower.includes('catalog') ||
+      sNameLower.includes('instrucc') ||
+      sNameLower.includes('auxiliar') ||
+      sNameLower.includes('datos') ||
+      sNameLower.includes('param')
+    ) {
+      continue;
+    }
+
     const ws = workbook.Sheets[sheetName];
     if (!ws || !ws['!ref']) continue;
 
     const range = XLSX.utils.decode_range(ws['!ref']);
+    // Validar rango mínimo para estructura de matriz semanal (al menos 4 filas y cols hasta primer turno)
+    if (range.e.r < 3 || range.e.c < 8) {
+      continue;
+    }
 
-    // 1. Validación de Hoja: Buscar encabezados CLAVE / NOMBRE y días LUNES a DOMINGO
+    // 2. Validación de Hoja: Buscar encabezados CLAVE / NOMBRE y días LUNES a DOMINGO en primeras filas
     let headerRow = -1;
     for (let r = 0; r <= Math.min(5, range.e.r); r++) {
       const rowTokens: string[] = [];
@@ -1080,19 +1100,11 @@ export function parseWeeklyMatrixWorkbook(
     const [pYear, pMonth, pDay] = period.startDate.split('-').map(Number);
     const mondayDate = new Date(pYear, pMonth - 1, pDay);
 
-    // Determinar la última fila real con datos en la hoja para no omitir celdas por rangos truncados
-    let maxRow = range.e.r;
-    for (const cellAddress of Object.keys(ws)) {
-      if (cellAddress.startsWith('!')) continue;
-      const decoded = XLSX.utils.decode_cell(cellAddress);
-      if (decoded.r > maxRow) {
-        maxRow = decoded.r;
-      }
-    }
+    // Límite de filas: usar el rango decode_range sin recorrer todas las llaves del objeto
+    const maxRow = range.e.r;
 
-    // 2. Filtrado de Colaboradores Activos: Columna B (Activo) === 1
-    // Importante: Se ignoran filtros visuales de Excel (ws['!rows'] hidden / autofilter)
-    // para leer TODAS las filas donde Columna B === 1 sin omitir filas filtradas.
+    // 3. Filtrado Rápido de Colaboradores Activos: Columna B (Activo) === 1
+    // Saltar de inmediato sin procesar celdas ni estilos si no está activo
     for (let r = dataStartRow; r <= maxRow; r++) {
       const cellActivo = ws[XLSX.utils.encode_cell({ r, c: 1 })]?.v;
       const isActivo =
