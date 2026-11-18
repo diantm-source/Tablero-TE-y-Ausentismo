@@ -131,7 +131,7 @@ export const OvertimeGeneralView: React.FC<OvertimeGeneralViewProps> = ({
       totalNormal += hNorm;
       totalProlongacion += hProl;
 
-      if (r.employeeId && hTot > 0) {
+      if (r.employeeId && String(r.employeeId).trim() !== '') {
         uniqueEmployees.add(String(r.employeeId).trim());
       }
     }
@@ -280,7 +280,7 @@ export const OvertimeGeneralView: React.FC<OvertimeGeneralViewProps> = ({
       totalNormal += hNorm;
       totalProlongacion += hProl;
 
-      if (r.employeeId && hTot > 0) {
+      if (r.employeeId && String(r.employeeId).trim() !== '') {
         uniqueEmployees.add(String(r.employeeId).trim());
       }
     }
@@ -537,6 +537,61 @@ export const OvertimeGeneralView: React.FC<OvertimeGeneralViewProps> = ({
         </div>
       </div>
 
+      {/* KPI Cards de Resumen del Concentrado */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Total Horas</span>
+            <i className="bi bi-clock-history text-blue-500"></i>
+          </div>
+          <div className="text-xl font-bold text-slate-900 font-mono">
+            {summaryKPIs.totalHoras.toLocaleString('es-MX')} hrs
+          </div>
+          <div className="text-[11px] text-slate-500 mt-1">
+            {summaryKPIs.totalRecords.toLocaleString('es-MX')} registros en selección
+          </div>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Trabajadores Únicos</span>
+            <i className="bi bi-people-fill text-emerald-500"></i>
+          </div>
+          <div className="text-xl font-bold text-slate-900 font-mono">
+            {summaryKPIs.uniqueCollaborators.toLocaleString('es-MX')}
+          </div>
+          <div className="text-[11px] text-slate-500 mt-1">
+            Colaboradores únicos registrados
+          </div>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Horas Extra</span>
+            <i className="bi bi-stopwatch text-sky-500"></i>
+          </div>
+          <div className="text-xl font-bold text-sky-700 font-mono">
+            {summaryKPIs.totalNormal.toLocaleString('es-MX')} hrs
+          </div>
+          <div className="text-[11px] text-slate-500 mt-1">
+            {calcPct(summaryKPIs.totalNormal, summaryKPIs.totalHoras)}% del total
+          </div>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Prolongación de jornada</span>
+            <i className="bi bi-hourglass-split text-amber-500"></i>
+          </div>
+          <div className="text-xl font-bold text-amber-700 font-mono">
+            {summaryKPIs.totalProlongacion.toLocaleString('es-MX')} hrs
+          </div>
+          <div className="text-[11px] text-slate-500 mt-1">
+            {calcPct(summaryKPIs.totalProlongacion, summaryKPIs.totalHoras)}% del total
+          </div>
+        </div>
+      </div>
+
       {/* TanStack Table Card */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
         {/* Table Toolbar */}
@@ -685,7 +740,8 @@ export const OvertimeGeneralView: React.FC<OvertimeGeneralViewProps> = ({
               {table.getState().pagination.pageIndex + 1}
             </span>{' '}
             de <span className="font-semibold text-slate-800">{Math.max(table.getPageCount(), 1)}</span> (Total:{' '}
-            <span className="font-semibold text-slate-800">{table.getFilteredRowModel().rows.length}</span> registros)
+            <span className="font-semibold text-slate-800">{table.getFilteredRowModel().rows.length}</span> registros ·{' '}
+            <span className="font-semibold text-slate-800">{summaryKPIs.uniqueCollaborators}</span> trabajadores únicos)
           </div>
 
           <div className="flex items-center gap-1">

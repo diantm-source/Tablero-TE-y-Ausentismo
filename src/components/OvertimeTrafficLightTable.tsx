@@ -33,6 +33,7 @@ export interface TrafficLightTableRow {
   isSyndicated: boolean;
   semana: string;
   turno?: string;
+  registrosCount?: number; // Número de registros en el archivo para este colaborador
   horasNormales: number; // Horas Extra (horas puras con color)
   horasProlongacion: number; // Prolongación de jornada
   horasTotales: number; // Total Horas Extra (Horas Extra + Prolongación de jornada)
@@ -81,35 +82,120 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
   );
 
   // Filas normalizadas según la fuente activa
+  // Se agrupan los registros por Número de Control / ID único del colaborador para que 1 ID = 1 trabajador real
   const allRows: TrafficLightTableRow[] = useMemo(() => {
     if (isMatrixMode && matrixRecords) {
-      return matrixRecords.map((m) => {
+      const empMap = new Map<
+        string,
+        {
+          id: string;
+          employeeId: string;
+          sapId?: string;
+          nombre: string;
+          colaborador: string;
+          department: string;
+          tipoColaborador: 'SINDICALIZADO' | 'NO SIND.';
+          isSyndicated: boolean;
+          semanas: Set<string>;
+          turnos: Set<string>;
+          horasNormales: number;
+          horasProlongacion: number;
+          horasTotales: number;
+          registrosCount: number;
+        }
+      >();
+
+      for (const m of matrixRecords) {
+        const id = String(m.employeeId || '').trim();
+        if (!id) continue;
+
         const hNorm = m.horasNormales !== undefined ? m.horasNormales : (m.hours || 0);
         const hProl = m.horasProlongacion !== undefined ? m.horasProlongacion : 0;
         const hTot = m.horasTotales !== undefined ? m.horasTotales : (hNorm + hProl);
+        const sem = m.week ? String(m.week) : '';
+        const turno = m.turno && m.turno !== 'Sin Turno' ? String(m.turno) : '';
+
+        const existing = empMap.get(id);
+        if (!existing) {
+          const semanasSet = new Set<string>();
+          if (sem) semanasSet.add(sem);
+          const turnosSet = new Set<string>();
+          if (turno) turnosSet.add(turno);
+
+          empMap.set(id, {
+            id: m.id || `${id}_${sem}`,
+            employeeId: id,
+            sapId: m.sapId || id,
+            nombre: m.employeeName || 'Sin Nombre',
+            colaborador: m.employeeName || 'Sin Nombre',
+            department: m.department || 'Sin Departamento',
+            tipoColaborador: 'SINDICALIZADO' as const,
+            isSyndicated: m.isSyndicated !== undefined ? m.isSyndicated : true,
+            semanas: semanasSet,
+            turnos: turnosSet,
+            horasNormales: hNorm,
+            horasProlongacion: hProl,
+            horasTotales: hTot,
+            registrosCount: 1,
+          });
+        } else {
+          existing.horasNormales += hNorm;
+          existing.horasProlongacion += hProl;
+          existing.horasTotales += hTot;
+          existing.registrosCount += 1;
+          if (sem) existing.semanas.add(sem);
+          if (turno) existing.turnos.add(turno);
+          if (m.sapId && (!existing.sapId || existing.sapId === existing.employeeId)) {
+            existing.sapId = m.sapId;
+          }
+          if (m.department && (!existing.department || existing.department === 'Sin Departamento')) {
+            existing.department = m.department;
+          }
+        }
+      }
+
+      return Array.from(empMap.values()).map((e) => {
+        const hNorm = Math.round(e.horasNormales * 10) / 10;
+        const hProl = Math.round(e.horasProlongacion * 10) / 10;
+        const hTot = Math.round(e.horasTotales * 10) / 10;
         const sem = evaluateTrafficLight(hTot);
 
+        const semanaLabel =
+          e.semanas.size === 1
+            ? Array.from(e.semanas)[0]
+            : e.semanas.size > 1
+            ? `${Array.from(e.semanas).sort().join(', ')}`
+            : 'Sin Semana';
+
+        const turnoLabel =
+          e.turnos.size === 1
+            ? Array.from(e.turnos)[0]
+            : e.turnos.size > 1
+            ? Array.from(e.turnos).join(', ')
+            : 'Sin Turno';
+
         return {
-          id: m.id || `${m.employeeId}_${m.week}`,
-          employeeId: m.employeeId,
-          sapId: m.sapId,
-          nombre: m.employeeName,
+          id: e.id,
+          employeeId: e.employeeId,
+          sapId: e.sapId,
+          nombre: e.nombre,
           apellido: '',
-          colaborador: m.employeeName,
-          department: m.department,
-          tipoColaborador: 'SINDICALIZADO' as const,
-          isSyndicated: true,
-          semana: m.week,
-          turno: m.turno || 'Sin Turno',
-          horasNormales: Math.round(hNorm * 10) / 10,
-          horasProlongacion: Math.round(hProl * 10) / 10,
-          horasTotales: Math.round(hTot * 10) / 10,
+          colaborador: e.colaborador,
+          department: e.department,
+          tipoColaborador: e.tipoColaborador,
+          isSyndicated: e.isSyndicated,
+          semana: semanaLabel,
+          turno: turnoLabel,
+          registrosCount: e.registrosCount,
+          horasNormales: hNorm,
+          horasProlongacion: hProl,
+          horasTotales: hTot,
           semaforo: sem,
         };
       });
     }
 
-    // Modo Legacy / BioTime
+    // Modo Legacy / BioTime (ya viene consolidado por empleado en useOvertimeAggregation)
     return legacyAggregated.map((r) => ({
       id: r.id,
       employeeId: r.id,
@@ -121,6 +207,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
       isSyndicated: r.isSyndicated,
       semana: r.semana,
       turno: r.turno,
+      registrosCount: r.diasLaborados || 1,
       horasNormales: r.horasBase,
       horasProlongacion: r.horasAdicionalesPorDia,
       horasTotales: evalMode === 'EQUIVALENCIA' ? r.equivalenciaHoraria : r.horasBase,
@@ -131,62 +218,66 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
     }));
   }, [isMatrixMode, matrixRecords, legacyAggregated, evalMode]);
 
-  // KPIs unificados
+  // KPIs unificados diferenciando Número de Trabajadores Reales vs Número de Registros
   const currentKPIs = useMemo(() => {
-    if (isMatrixMode) {
-      let rCount = 0;
-      let aCount = 0;
-      let vCount = 0;
-      let sCount = 0;
-      let totNorm = 0;
-      let totProl = 0;
-      let totH = 0;
-
-      for (const row of allRows) {
-        if (row.semaforo === 'ROJO') rCount++;
-        else if (row.semaforo === 'AMARILLO') aCount++;
-        else if (row.semaforo === 'VERDE') vCount++;
-        else sCount++;
-
-        totNorm += row.horasNormales;
-        totProl += row.horasProlongacion;
-        totH += row.horasTotales;
-      }
-
-      return {
-        totalColaboradores: allRows.length,
-        sindicalizadosCount: allRows.length,
-        noSindicalizadosCount: 0,
-        rojoCount: rCount,
-        amarilloCount: aCount,
-        verdeCount: vCount,
-        sinHrsCount: sCount,
-        totalHorasAprobadas: Math.round(totNorm * 10) / 10,
-        totalHorasPendientes: 0,
-        totalAcumulado: Math.round(totNorm * 10) / 10,
-        totalEquivalenciaHoraria: Math.round(totH * 10) / 10,
-        totalDiasLaborados: allRows.length,
-        totalDiasTercerTurno: 0,
-        totalHorasProlongacion: Math.round(totProl * 10) / 10,
-      };
-    }
-
+    let rCount = 0;
+    let aCount = 0;
+    let vCount = 0;
     let sCount = 0;
+    let rRegs = 0;
+    let aRegs = 0;
+    let vRegs = 0;
+    let sRegs = 0;
+    let totNorm = 0;
+    let totProl = 0;
+    let totH = 0;
+    let totRegs = 0;
+
     for (const row of allRows) {
-      if (
-        row.semaforo === 'SIN_HRS' ||
-        row.semaforo === 'SIN_HORAS' ||
-        (row.horasTotales === 0 && row.horasNormales === 0 && row.horasProlongacion === 0)
-      ) {
+      const regs = row.registrosCount || 1;
+      totRegs += regs;
+
+      if (row.semaforo === 'ROJO') {
+        rCount++;
+        rRegs += regs;
+      } else if (row.semaforo === 'AMARILLO') {
+        aCount++;
+        aRegs += regs;
+      } else if (row.semaforo === 'VERDE') {
+        vCount++;
+        vRegs += regs;
+      } else {
         sCount++;
+        sRegs += regs;
       }
+
+      totNorm += row.horasNormales;
+      totProl += row.horasProlongacion;
+      totH += row.horasTotales;
     }
 
     return {
-      ...legacyKpis,
-      sinHrsCount: legacyKpis.sinHrsCount ?? legacyKpis.sinHorasCount ?? sCount,
+      totalColaboradores: allRows.length, // Número real de trabajadores (IDs únicos)
+      totalRegistros: totRegs, // Número de registros procesados
+      sindicalizadosCount: allRows.length,
+      noSindicalizadosCount: 0,
+      rojoCount: rCount,
+      rojoRegistros: rRegs,
+      amarilloCount: aCount,
+      amarilloRegistros: aRegs,
+      verdeCount: vCount,
+      verdeRegistros: vRegs,
+      sinHrsCount: sCount,
+      sinHrsRegistros: sRegs,
+      totalHorasAprobadas: Math.round(totNorm * 10) / 10,
+      totalHorasPendientes: 0,
+      totalAcumulado: Math.round(totNorm * 10) / 10,
+      totalEquivalenciaHoraria: Math.round(totH * 10) / 10,
+      totalDiasLaborados: allRows.length,
+      totalDiasTercerTurno: 0,
+      totalHorasProlongacion: Math.round(totProl * 10) / 10,
     };
-  }, [isMatrixMode, allRows, legacyKpis]);
+  }, [allRows]);
 
   // Filtrado por la pestaña del semáforo seleccionada
   const filteredData = useMemo(() => {
@@ -242,6 +333,8 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
       Tipo: r.tipoColaborador,
       Sindicalizado: r.isSyndicated ? 'SÍ' : 'NO',
       Semana: r.semana,
+      Turno: r.turno || 'Sin Turno',
+      'Número de Registros': r.registrosCount || 1,
       'Horas Extra': r.horasNormales,
       'Prolongación de jornada': r.horasProlongacion,
       'Total Horas Extra': r.horasTotales,
@@ -321,6 +414,26 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
             {row.original.tipoColaborador}
           </span>
         ),
+      },
+      {
+        accessorKey: 'registrosCount',
+        header: 'Registros',
+        cell: ({ row }) => {
+          const count = row.original.registrosCount || 1;
+          return (
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${
+                count > 1
+                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                  : 'bg-slate-50 text-slate-600 border-slate-200'
+              }`}
+              title={`${count} registro(s) en los archivos para este número de control (ID único)`}
+            >
+              <i className="bi bi-file-earmark-text text-[9px]"></i>
+              <span>{count} {count === 1 ? 'reg.' : 'regs.'}</span>
+            </span>
+          );
+        },
       },
       {
         accessorKey: 'semana',
@@ -485,11 +598,14 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
             </span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-black text-rose-600">{currentKPIs.rojoCount}</span>
-            <span className="text-xs text-slate-500">
-              {currentKPIs.totalColaboradores > 0
-                ? `${Math.round((currentKPIs.rojoCount / currentKPIs.totalColaboradores) * 100)}% de selección`
-                : '0%'}
+            <div>
+              <span className="text-2xl font-black text-rose-600">{currentKPIs.rojoCount}</span>
+              <span className="text-[11px] font-semibold text-rose-700 ml-1">trabajadores</span>
+            </div>
+            <span className="text-[11px] text-slate-500">
+              {currentKPIs.rojoRegistros || currentKPIs.rojoCount} regs. ({currentKPIs.totalColaboradores > 0
+                ? `${Math.round((currentKPIs.rojoCount / currentKPIs.totalColaboradores) * 100)}%`
+                : '0%'})
             </span>
           </div>
         </div>
@@ -513,11 +629,14 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
             </span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-black text-amber-600">{currentKPIs.amarilloCount}</span>
-            <span className="text-xs text-slate-500">
-              {currentKPIs.totalColaboradores > 0
-                ? `${Math.round((currentKPIs.amarilloCount / currentKPIs.totalColaboradores) * 100)}% de selección`
-                : '0%'}
+            <div>
+              <span className="text-2xl font-black text-amber-600">{currentKPIs.amarilloCount}</span>
+              <span className="text-[11px] font-semibold text-amber-700 ml-1">trabajadores</span>
+            </div>
+            <span className="text-[11px] text-slate-500">
+              {currentKPIs.amarilloRegistros || currentKPIs.amarilloCount} regs. ({currentKPIs.totalColaboradores > 0
+                ? `${Math.round((currentKPIs.amarilloCount / currentKPIs.totalColaboradores) * 100)}%`
+                : '0%'})
             </span>
           </div>
         </div>
@@ -541,11 +660,14 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
             </span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-black text-emerald-600">{currentKPIs.verdeCount}</span>
-            <span className="text-xs text-slate-500">
-              {currentKPIs.totalColaboradores > 0
-                ? `${Math.round((currentKPIs.verdeCount / currentKPIs.totalColaboradores) * 100)}% de selección`
-                : '0%'}
+            <div>
+              <span className="text-2xl font-black text-emerald-600">{currentKPIs.verdeCount}</span>
+              <span className="text-[11px] font-semibold text-emerald-700 ml-1">trabajadores</span>
+            </div>
+            <span className="text-[11px] text-slate-500">
+              {currentKPIs.verdeRegistros || currentKPIs.verdeCount} regs. ({currentKPIs.totalColaboradores > 0
+                ? `${Math.round((currentKPIs.verdeCount / currentKPIs.totalColaboradores) * 100)}%`
+                : '0%'})
             </span>
           </div>
         </div>
@@ -569,11 +691,14 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
             </span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-black text-slate-700">{currentKPIs.sinHrsCount || 0}</span>
-            <span className="text-xs text-slate-500">
-              {currentKPIs.totalColaboradores > 0
-                ? `${Math.round(((currentKPIs.sinHrsCount || 0) / currentKPIs.totalColaboradores) * 100)}% de selección`
-                : '0%'}
+            <div>
+              <span className="text-2xl font-black text-slate-700">{currentKPIs.sinHrsCount || 0}</span>
+              <span className="text-[11px] font-semibold text-slate-600 ml-1">trabajadores</span>
+            </div>
+            <span className="text-[11px] text-slate-500">
+              {currentKPIs.sinHrsRegistros || currentKPIs.sinHrsCount || 0} regs. ({currentKPIs.totalColaboradores > 0
+                ? `${Math.round(((currentKPIs.sinHrsCount || 0) / currentKPIs.totalColaboradores) * 100)}%`
+                : '0%'})
             </span>
           </div>
         </div>
@@ -584,9 +709,14 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Horas Acumuladas
             </span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-100 text-blue-800">
-              {currentKPIs.totalColaboradores} colaboradores
-            </span>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-100 text-blue-800" title="Número real de trabajadores con número de control (ID único)">
+                {currentKPIs.totalColaboradores} trab.
+              </span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-slate-100 text-slate-600 border border-slate-200" title="Total de registros en los archivos">
+                {currentKPIs.totalRegistros} regs.
+              </span>
+            </div>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
             <div className="flex flex-col">
@@ -626,7 +756,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Todos ({allRows.length})
+              Todos ({allRows.length} trab.)
             </button>
             <button
               type="button"
@@ -883,7 +1013,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
               )}
             </span>{' '}
             de <span className="font-semibold text-slate-900">{table.getFilteredRowModel().rows.length}</span>{' '}
-            colaboradores
+            trabajadores únicos ({filteredData.reduce((acc, r) => acc + (r.registrosCount || 1), 0)} registros)
           </div>
 
           <div className="flex items-center gap-1.5">

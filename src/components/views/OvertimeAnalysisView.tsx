@@ -85,7 +85,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
       totalHoras += hTot;
       totalNormal += hNorm;
       totalProlongacion += hProl;
-      if (r.employeeId && hTot > 0) uniqueEmployees.add(String(r.employeeId).trim());
+      if (r.employeeId) uniqueEmployees.add(String(r.employeeId).trim());
     }
 
     return {
@@ -173,7 +173,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
       totalHoras += hTot;
       totalNormal += hNorm;
       totalProlongacion += hProl;
-      if (r.employeeId && hTot > 0) uniqueEmployees.add(String(r.employeeId).trim());
+      if (r.employeeId) uniqueEmployees.add(String(r.employeeId).trim());
     }
 
     return {
@@ -574,7 +574,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
             <span className="text-xs text-slate-500">Cálculo de horas cronológicas exactas</span>
             <span className="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
               <i className="bi bi-funnel-fill text-[11px] text-emerald-600"></i>
-              <span>{filteredMatrixRecords.length} registros en selección</span>
+              <span>{summaryKPIs.uniqueCollaborators} trabajadores ({summaryKPIs.totalRecords} registros) en selección</span>
             </span>
           </div>
           <h2 className="text-xl font-bold text-slate-900">Análisis y Auditoría de Tiempo Extra</h2>
@@ -681,11 +681,11 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
           </div>
         </div>
 
-        {/* 5. Colaboradores Únicos */}
+        {/* 5. Trabajadores Únicos */}
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Colaboradores Únicos
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider" title="Número real de colaboradores identificados por su número de control (ID único)">
+              Trabajadores Únicos
             </span>
             <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <i className="bi bi-people-fill text-sm"></i>
@@ -696,7 +696,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
               {summaryKPIs.uniqueCollaborators.toLocaleString('es-MX')}
             </div>
             <div className="text-[11px] text-slate-500 mt-0.5">
-              de <strong className="text-slate-700">{globalKPIs.uniqueCollaborators.toLocaleString('es-MX')}</strong> colaboradores ({calcPct(summaryKPIs.uniqueCollaborators, globalKPIs.uniqueCollaborators)}%)
+              de <strong className="text-slate-700">{globalKPIs.uniqueCollaborators.toLocaleString('es-MX')}</strong> trabajadores únicos ({calcPct(summaryKPIs.uniqueCollaborators, globalKPIs.uniqueCollaborators)}%)
             </div>
           </div>
         </div>
@@ -727,7 +727,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
           }`}
         >
           <span aria-hidden="true">🚦</span>
-          <span>Semáforo Semanal por Colaborador</span>
+          <span>Semáforo Semanal por Trabajador</span>
         </button>
 
         <button
