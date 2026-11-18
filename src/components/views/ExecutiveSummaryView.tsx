@@ -208,140 +208,140 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Banner Superior Simplificado */}
-      <div className="bg-slate-900 text-white rounded-xl py-4 px-6 shadow-sm border border-slate-800 flex items-center">
-        <h2 className="text-xl font-bold tracking-tight text-white">Resumen General</h2>
+      <div className="bg-slate-900 text-white rounded-2xl p-3.5 sm:p-5 shadow-sm border border-slate-800 flex items-center">
+        <h2 className="text-lg sm:text-2xl font-bold tracking-tight text-white">Resumen General</h2>
       </div>
 
       {/* ========================================================================= */}
       {/* 5 INDICADORES CLAVE (KPI CARDS EN RESUMEN GENERAL)                        */}
       {/* Reactivos a Semana, Mes, Departamento y Líder de Área                     */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-4">
         {/* KPI 1: Horas Extra Totales */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+        <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Horas Extra Totales</span>
-              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                <i className="bi bi-clock-history text-base"></i>
+            <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+              <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700">Horas Extra Totales</span>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <i className="bi bi-clock-history text-sm sm:text-base"></i>
               </div>
             </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-black text-slate-900 tracking-tight">
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight text-slate-900 tracking-tight">
                 {execKPIs.totalOvertimeHours.total.toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </span>
-              <span className="text-xs font-medium text-slate-500">hrs</span>
+              <span className="text-[11px] sm:text-xs font-medium text-slate-500">hrs</span>
             </div>
           </div>
 
-          <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1">
-            <div className="text-xs font-semibold text-slate-700">
+          <div className="mt-2.5 sm:mt-3 pt-2 sm:pt-2.5 border-t border-slate-100 space-y-0.5 sm:space-y-1">
+            <div className="text-[11px] sm:text-xs font-semibold text-slate-700 leading-snug">
               {execKPIs.totalOvertimeHours.normales.toFixed(1)} hrs Normales + {execKPIs.totalOvertimeHours.prolongacion.toFixed(1)} hrs Prolongación
             </div>
-            <div className="text-[11px] text-slate-500">
+            <div className="text-[10px] sm:text-[11px] text-slate-500 leading-snug">
               de <span className="font-semibold text-slate-700">{execKPIs.totalOvertimeHours.globalTotal.toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} hrs</span> en total ({execKPIs.totalOvertimeHours.percentageOfGlobal}%)
             </div>
           </div>
         </div>
 
         {/* KPI 2: Faltas injustificadas */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+        <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Faltas injustificadas</span>
-              <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                <i className="bi bi-person-x-fill text-base"></i>
+            <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+              <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700">Faltas injustificadas</span>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                <i className="bi bi-person-x-fill text-sm sm:text-base"></i>
               </div>
             </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-black text-rose-600 tracking-tight">
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight text-rose-600 tracking-tight">
                 {execKPIs.unjustifiedAbsences.count.toLocaleString('es-MX')}
               </span>
-              <span className="text-xs font-medium text-slate-500">faltas</span>
+              <span className="text-[11px] sm:text-xs font-medium text-slate-500">faltas</span>
             </div>
           </div>
 
-          <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1">
-            <div className="text-xs font-semibold text-rose-700">
-              {execKPIs.unjustifiedAbsences.equivalentHours.toFixed(1)} hrs equivalentes de ausencia
+          <div className="mt-2.5 sm:mt-3 pt-2 sm:pt-2.5 border-t border-slate-100 space-y-0.5 sm:space-y-1">
+            <div className="text-[11px] sm:text-xs font-semibold text-rose-700 leading-snug">
+              {execKPIs.unjustifiedAbsences.equivalentHours.toFixed(1)} hrs equiv. de ausencia
             </div>
-            <div className="text-[11px] text-slate-500">
-              de <span className="font-semibold text-slate-700">{execKPIs.unjustifiedAbsences.globalCount.toLocaleString('es-MX')} faltas</span> en total ({execKPIs.unjustifiedAbsences.percentageOfGlobal}%)
+            <div className="text-[10px] sm:text-[11px] text-slate-500 leading-snug">
+              de <span className="font-semibold text-slate-700">{execKPIs.unjustifiedAbsences.globalCount.toLocaleString('es-MX')} faltas</span> ({execKPIs.unjustifiedAbsences.percentageOfGlobal}%)
             </div>
           </div>
         </div>
 
         {/* KPI 3: Faltas justificadas */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+        <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Faltas justificadas</span>
-              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                <i className="bi bi-clipboard-check-fill text-base"></i>
+            <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+              <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700">Faltas justificadas</span>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <i className="bi bi-clipboard-check-fill text-sm sm:text-base"></i>
               </div>
             </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-black text-emerald-600 tracking-tight">
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight text-emerald-600 tracking-tight">
                 {execKPIs.justifiedAbsences.count.toLocaleString('es-MX')}
               </span>
-              <span className="text-xs font-medium text-slate-500">justificadas</span>
+              <span className="text-[11px] sm:text-xs font-medium text-slate-500">justif.</span>
             </div>
           </div>
 
-          <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1">
-            <div className="text-xs font-semibold text-emerald-700 truncate" title={execKPIs.justifiedAbsences.breakdownSummary}>
+          <div className="mt-2.5 sm:mt-3 pt-2 sm:pt-2.5 border-t border-slate-100 space-y-0.5 sm:space-y-1">
+            <div className="text-[11px] sm:text-xs font-semibold text-emerald-700 truncate leading-snug" title={execKPIs.justifiedAbsences.breakdownSummary}>
               {execKPIs.justifiedAbsences.breakdownSummary}
             </div>
-            <div className="text-[11px] text-slate-500">
-              de <span className="font-semibold text-slate-700">{execKPIs.justifiedAbsences.globalCount.toLocaleString('es-MX')} justificadas</span> en total ({execKPIs.justifiedAbsences.percentageOfGlobal}%)
+            <div className="text-[10px] sm:text-[11px] text-slate-500 leading-snug">
+              de <span className="font-semibold text-slate-700">{execKPIs.justifiedAbsences.globalCount.toLocaleString('es-MX')}</span> ({execKPIs.justifiedAbsences.percentageOfGlobal}%)
             </div>
           </div>
         </div>
 
         {/* KPI 4: Área con mayor TE */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+        <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Área con mayor TE</span>
-              <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                <i className="bi bi-lightning-charge-fill text-base"></i>
+            <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+              <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700">Área mayor TE</span>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <i className="bi bi-lightning-charge-fill text-sm sm:text-base"></i>
               </div>
             </div>
-            <div className="text-base font-bold text-slate-900 truncate" title={execKPIs.topOvertimeDepartment?.department || 'Sin datos'}>
+            <div className="text-sm sm:text-base font-bold text-slate-900 truncate" title={execKPIs.topOvertimeDepartment?.department || 'Sin datos'}>
               {execKPIs.topOvertimeDepartment ? execKPIs.topOvertimeDepartment.department : 'Sin registros'}
             </div>
           </div>
 
-          <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1">
-            <div className="text-xs font-semibold text-amber-700">
+          <div className="mt-2.5 sm:mt-3 pt-2 sm:pt-2.5 border-t border-slate-100 space-y-0.5 sm:space-y-1">
+            <div className="text-[11px] sm:text-xs font-semibold text-amber-700 leading-snug">
               {execKPIs.topOvertimeDepartment ? `${execKPIs.topOvertimeDepartment.hours.toFixed(1)} hrs totales` : '0.0 hrs'}
             </div>
-            <div className="text-[11px] text-slate-500 truncate" title={execKPIs.topOvertimeDepartment?.leader}>
+            <div className="text-[10px] sm:text-[11px] text-slate-500 truncate leading-snug" title={execKPIs.topOvertimeDepartment?.leader}>
               Líder: <span className="font-semibold text-slate-700">{execKPIs.topOvertimeDepartment?.leader || 'Sin Asignar'}</span>
             </div>
           </div>
         </div>
 
         {/* KPI 5: Área con mayor ausentismo */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+        <div className="col-span-2 sm:col-span-1 lg:col-span-1 bg-white rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Área con mayor ausentismo</span>
-              <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-                <i className="bi bi-shield-exclamation text-base"></i>
+            <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+              <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700">Mayor ausentismo</span>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                <i className="bi bi-shield-exclamation text-sm sm:text-base"></i>
               </div>
             </div>
-            <div className="text-base font-bold text-slate-900 truncate" title={execKPIs.topAbsenceDepartment?.department || 'Sin datos'}>
+            <div className="text-sm sm:text-base font-bold text-slate-900 truncate" title={execKPIs.topAbsenceDepartment?.department || 'Sin datos'}>
               {execKPIs.topAbsenceDepartment ? execKPIs.topAbsenceDepartment.department : 'Sin registros'}
             </div>
           </div>
 
-          <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1">
-            <div className="text-xs font-semibold text-rose-600">
+          <div className="mt-2.5 sm:mt-3 pt-2 sm:pt-2.5 border-t border-slate-100 space-y-0.5 sm:space-y-1">
+            <div className="text-[11px] sm:text-xs font-semibold text-rose-600 leading-snug">
               Tasa: {execKPIs.topAbsenceDepartment ? `${execKPIs.topAbsenceDepartment.rate.toFixed(1)}%` : '0.0%'}
             </div>
-            <div className="text-[11px] text-slate-500">
-              <span className="font-semibold text-slate-700">{execKPIs.topAbsenceDepartment ? `${execKPIs.topAbsenceDepartment.hours.toFixed(1)} hrs` : '0.0 hrs'}</span> de ausencia ({execKPIs.topAbsenceDepartment?.absencesCount || 0} aus.)
+            <div className="text-[10px] sm:text-[11px] text-slate-500 leading-snug">
+              <span className="font-semibold text-slate-700">{execKPIs.topAbsenceDepartment ? `${execKPIs.topAbsenceDepartment.hours.toFixed(1)} hrs` : '0.0 hrs'}</span> ({execKPIs.topAbsenceDepartment?.absencesCount || 0} aus.)
             </div>
           </div>
         </div>
@@ -351,9 +351,9 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
       {/* 2 GRÁFICAS INTERACTIVAS CON SWITCH BARRAS / PASTEL                         */}
       {/* Regla Estricta: Responden ÚNICAMENTE a Semana ISO 8601 y Mes              */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0">
         {/* GRÁFICA 1: TIEMPO EXTRA POR DEPARTAMENTO */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between min-w-0">
           <div>
             {/* Header con Título, Regla de Filtrado y Switch Barras / Pastel */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -401,9 +401,9 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
             </div>
 
             {/* Contenedor Gráfico */}
-            <div className="h-72 w-full">
+            <div className="h-[230px] sm:h-[300px] lg:h-[340px] w-full min-w-0">
               {overtimeChart.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                   {otChartType === 'bar' ? (
                     <BarChart
                       data={overtimeChart.slice(0, 10)}
@@ -414,9 +414,9 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
                         dataKey="department"
                         tick={{ fontSize: 10, fill: '#64748b' }}
                         interval={0}
-                        angle={-25}
+                        angle={-35}
                         textAnchor="end"
-                        height={40}
+                        height={55}
                       />
                       <YAxis
                         tick={{ fontSize: 10, fill: '#64748b' }}
@@ -500,7 +500,7 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
 
             {/* Acordeón de Tabla Desplegable */}
             {showOtTable && (
-              <div className="mt-2 overflow-x-auto max-h-60 rounded-lg border border-slate-200">
+              <div className="mt-2 overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 max-h-60 rounded-lg border border-slate-200">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-slate-50 text-slate-600 font-semibold sticky top-0 border-b border-slate-200">
                     <tr>
@@ -535,7 +535,7 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
         </div>
 
         {/* GRÁFICA 2: AUSENTISMO POR DEPARTAMENTO */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between min-w-0">
           <div>
             {/* Header con Título, Regla de Filtrado y Switch Barras / Pastel */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -583,9 +583,9 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
             </div>
 
             {/* Contenedor Gráfico */}
-            <div className="h-72 w-full">
+            <div className="h-[230px] sm:h-[300px] lg:h-[340px] w-full min-w-0">
               {absenceChart.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                   {absChartType === 'bar' ? (
                     <BarChart
                       data={absenceChart.slice(0, 10)}
@@ -596,9 +596,9 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
                         dataKey="department"
                         tick={{ fontSize: 10, fill: '#64748b' }}
                         interval={0}
-                        angle={-25}
+                        angle={-35}
                         textAnchor="end"
-                        height={40}
+                        height={55}
                       />
                       <YAxis
                         tick={{ fontSize: 10, fill: '#64748b' }}
@@ -618,7 +618,7 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
                             const num = Number(val) || 0;
                             return num % 1 === 0 ? num.toString() : num.toFixed(1);
                           }}
-                          style={{ fill: '#1e293b', fontSize: 11, fontWeight: 700 }}
+                          style={{ fill: '#1e293b', fontSize: 10, fontWeight: 700 }}
                         />
                       </Bar>
                     </BarChart>
@@ -681,7 +681,7 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
 
             {/* Acordeón de Tabla Desplegable */}
             {showAbsTable && (
-              <div className="mt-2 overflow-x-auto max-h-60 rounded-lg border border-slate-200">
+              <div className="mt-2 overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 max-h-60 rounded-lg border border-slate-200">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-slate-50 text-slate-600 font-semibold sticky top-0 border-b border-slate-200">
                     <tr>

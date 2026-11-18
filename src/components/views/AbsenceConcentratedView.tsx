@@ -633,100 +633,100 @@ export const AbsenceConcentratedView: React.FC<AbsenceConcentratedViewProps> = (
   return (
     <div className="space-y-6">
       {/* KPI Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {/* KPI 1: Total Ausencias Registradas */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Total Ausencias Registradas
+        <div className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-1 sm:mb-2">
+            <span className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Total Ausencias
             </span>
-            <span className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-              <i className="bi bi-calendar-x-fill text-sm"></i>
+            <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <i className="bi bi-calendar-x-fill text-xs sm:text-sm"></i>
             </span>
           </div>
-          <div className="mt-2 flex items-baseline justify-between gap-2">
-            <span className="text-2xl font-black text-slate-900">
+          <div className="mt-1 flex items-baseline justify-between gap-1">
+            <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight text-slate-900 tracking-tight">
               {numberFormatter.format(summaryKPIs.totalAbsences)}
             </span>
-            <span className="text-[11px] text-slate-500">
-              {summaryKPIs.totalRecords.toLocaleString('es-MX')} registros
+            <span className="text-[10px] sm:text-[11px] text-slate-500">
+              {summaryKPIs.totalRecords.toLocaleString('es-MX')} reg.
             </span>
           </div>
-          <span className="text-[10px] text-slate-400 block mt-1">
-            Sumatoria columna Ausencias (de {records.length.toLocaleString('es-MX')} totales)
+          <span className="text-[10px] sm:text-[11px] text-slate-400 block mt-1 leading-snug">
+            Sumatoria Ausencias ({records.length.toLocaleString('es-MX')} tot.)
           </span>
         </div>
 
         {/* KPI 2: Faltas Injustificadas (Ausencias Reales) */}
-        <div className="bg-white p-4 rounded-xl border border-rose-200/80 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider">
-              Faltas Injustificadas (Reales)
+        <div className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-rose-200/80 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-1 sm:mb-2">
+            <span className="text-[11px] sm:text-xs font-bold text-rose-700 uppercase tracking-wider">
+              Injustificadas (Reales)
             </span>
-            <span className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
-              <i className="bi bi-exclamation-octagon-fill text-sm"></i>
+            <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+              <i className="bi bi-exclamation-octagon-fill text-xs sm:text-sm"></i>
             </span>
           </div>
-          <div className="mt-2 flex items-baseline justify-between gap-2">
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-black text-rose-700">
+          <div className="mt-1 flex items-baseline justify-between gap-1 flex-wrap">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight text-rose-700 tracking-tight">
                 {numberFormatter.format(summaryKPIs.unjustifiedAbsences)}
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
                 {summaryKPIs.unjustifiedPercentage}%
               </span>
             </div>
-            <span className="text-[11px] text-rose-600 font-semibold">
+            <span className="text-[10px] sm:text-[11px] text-rose-600 font-semibold">
               {summaryKPIs.unjustifiedCount} incid.
             </span>
           </div>
           <span
-            className="text-[10px] text-slate-500 block mt-1"
+            className="text-[10px] sm:text-[11px] text-slate-500 block mt-1 leading-snug"
             title="(Ausencias por Falta Injustificada ÷ Total de Ausencias Registradas) × 100"
           >
-            % Falta Injustificada sobre total de ausencias
+            % Falta Injustificada sobre total
           </span>
         </div>
 
         {/* KPI 3: Costo Total por Ausentismo ($) */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Costo Total por Ausentismo
+        <div className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-1 sm:mb-2">
+            <span className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Costo Total
             </span>
-            <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <i className="bi bi-currency-dollar text-sm"></i>
+            <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <i className="bi bi-currency-dollar text-xs sm:text-sm"></i>
             </span>
           </div>
-          <div className="mt-2 flex items-baseline justify-between gap-2">
-            <span className="text-2xl font-black text-emerald-700">
+          <div className="mt-1 flex items-baseline justify-between gap-1">
+            <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight text-emerald-700 tracking-tight">
               {currencyFormatter.format(summaryKPIs.totalAmount)}
             </span>
-            <span className="text-[11px] text-emerald-600 font-semibold">MXN</span>
+            <span className="text-[10px] sm:text-[11px] text-emerald-600 font-semibold">MXN</span>
           </div>
-          <span className="text-[10px] text-slate-500 block mt-1">
-            En Falta Injustificada: {currencyFormatter.format(summaryKPIs.unjustifiedAmount)}
+          <span className="text-[10px] sm:text-[11px] text-slate-500 block mt-1 leading-snug">
+            Injustificada: {currencyFormatter.format(summaryKPIs.unjustifiedAmount)}
           </span>
         </div>
 
         {/* KPI 4: Colaboradores Únicos Afectados */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Colaboradores Únicos Afectados
+        <div className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-1 sm:mb-2">
+            <span className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Colab. Afectados
             </span>
-            <span className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-              <i className="bi bi-people-fill text-sm"></i>
+            <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+              <i className="bi bi-people-fill text-xs sm:text-sm"></i>
             </span>
           </div>
-          <div className="mt-2 flex items-baseline justify-between gap-2">
-            <span className="text-2xl font-black text-slate-900">
+          <div className="mt-1 flex items-baseline justify-between gap-1">
+            <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight text-slate-900 tracking-tight">
               {summaryKPIs.uniqueCollaborators.toLocaleString('es-MX')}
             </span>
-            <span className="text-[11px] text-slate-500">IDs distintos</span>
+            <span className="text-[10px] sm:text-[11px] text-slate-500">IDs</span>
           </div>
-          <span className="text-[10px] text-slate-400 block mt-1">
-            Personal distinto registrado con ausencias
+          <span className="text-[10px] sm:text-[11px] text-slate-400 block mt-1 leading-snug">
+            Personal con ausencias
           </span>
         </div>
       </div>
@@ -816,18 +816,18 @@ export const AbsenceConcentratedView: React.FC<AbsenceConcentratedViewProps> = (
             </div>
           </div>
 
-          <div className="h-72">
+          <div className="h-[230px] sm:h-[300px] lg:h-[340px] w-full min-w-0">
             {chart1Data.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chart1Data} margin={{ top: 25, right: 12, left: 0, bottom: 20 }}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
+                <BarChart data={chart1Data} margin={{ top: 25, right: 12, left: 0, bottom: 25 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis
                     dataKey="label"
                     tick={{ fontSize: 10 }}
                     interval={0}
-                    angle={chart1Data.length > 6 ? -20 : 0}
-                    textAnchor={chart1Data.length > 6 ? 'end' : 'middle'}
-                    height={chart1Data.length > 6 ? 50 : 30}
+                    angle={-35}
+                    textAnchor="end"
+                    height={55}
                   />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip
@@ -922,8 +922,8 @@ export const AbsenceConcentratedView: React.FC<AbsenceConcentratedViewProps> = (
           <div className="flex-1 min-h-[280px] flex flex-col justify-center">
             {typeDistributionData.length > 0 ? (
               typeChartMode === 'bar' ? (
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-[230px] sm:h-[300px] lg:h-[340px] w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                     <BarChart
                       data={typeDistributionData}
                       layout="vertical"
@@ -967,8 +967,8 @@ export const AbsenceConcentratedView: React.FC<AbsenceConcentratedViewProps> = (
                 </div>
               ) : (
                 <div className="flex flex-col sm:flex-row items-center gap-4">
-                  <div className="w-full sm:w-1/2 h-56">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="w-full sm:w-1/2 h-56 min-w-0">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                       <PieChart>
                         <Pie
                           data={typeDistributionData}
@@ -1128,7 +1128,7 @@ export const AbsenceConcentratedView: React.FC<AbsenceConcentratedViewProps> = (
         </div>
 
         {/* Table Content */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 select-none">
               {table.getHeaderGroups().map((headerGroup) => (

@@ -159,7 +159,7 @@ export const AttendanceAnalysisView: React.FC<AttendanceAnalysisViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Banner with Module Tabs */}
-      <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">
@@ -183,7 +183,7 @@ export const AttendanceAnalysisView: React.FC<AttendanceAnalysisViewProps> = ({
               </>
             )}
           </div>
-          <h2 className="text-xl font-bold text-slate-900">
+          <h2 className="text-lg sm:text-2xl font-bold text-slate-900">
             {activeTab === 'concentrated'
               ? 'Análisis de Ausentismo — Concentrado de Ausencias'
               : 'Control de Asistencia y Tasa de Ausentismo'}
@@ -209,11 +209,11 @@ export const AttendanceAnalysisView: React.FC<AttendanceAnalysisViewProps> = ({
       </div>
 
       {/* Module Source Navigation Tabs */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
+      <div className="flex overflow-x-auto no-scrollbar gap-2 border-b border-slate-200 pb-1 -mx-2 px-2 sm:mx-0 sm:px-0">
         <button
           type="button"
           onClick={() => setActiveTab('concentrated')}
-          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+          className={`whitespace-nowrap shrink-0 text-xs sm:text-sm px-3 py-2 font-bold rounded-lg transition-all flex items-center gap-2 ${
             activeTab === 'concentrated'
               ? 'bg-blue-600 text-white shadow-sm'
               : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
@@ -226,7 +226,7 @@ export const AttendanceAnalysisView: React.FC<AttendanceAnalysisViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('biotime')}
-          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+          className={`whitespace-nowrap shrink-0 text-xs sm:text-sm px-3 py-2 font-bold rounded-lg transition-all flex items-center gap-2 ${
             activeTab === 'biotime'
               ? 'bg-blue-600 text-white shadow-sm'
               : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
@@ -252,7 +252,7 @@ export const AttendanceAnalysisView: React.FC<AttendanceAnalysisViewProps> = ({
       {activeTab === 'biotime' && (
         <div className="space-y-6">
       {/* Transparent Formula Display Box */}
-      <div className="bg-slate-900 text-slate-100 rounded-xl p-4 shadow-sm border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-slate-900 text-slate-100 rounded-2xl p-3.5 sm:p-5 shadow-sm border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
         <div className="space-y-1">
           <span className="text-[11px] font-bold text-blue-400 uppercase tracking-wider block">
             Fórmula Transparente de Tasa de Ausentismo
@@ -283,46 +283,52 @@ export const AttendanceAnalysisView: React.FC<AttendanceAnalysisViewProps> = ({
       </div>
 
       {/* Attendance KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4">
+        <div className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 block">
             Ausencias Confirmadas
           </span>
-          <span className="text-2xl font-bold text-slate-900 mt-1 block">{kpis.totalAbsences}</span>
-          <span className="text-[11px] text-slate-400 block mt-1">Sin Entrada ni Salida</span>
+          <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight text-slate-900 mt-1 block tracking-tight">
+            {kpis.totalAbsences}
+          </span>
+          <span className="text-[10px] sm:text-[11px] text-slate-500 block mt-1 leading-snug">
+            Sin Entrada ni Salida
+          </span>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
-            Sindicalizados vs No Sind.
+        <div className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 block">
+            Sind. vs No Sind.
           </span>
-          <div className="text-base font-bold text-slate-800 mt-1">
+          <div className="text-sm sm:text-base font-bold text-slate-800 mt-1">
             {kpis.syndicatedAbsenceRate}% <span className="text-xs font-normal text-slate-500">vs</span>{' '}
             {kpis.nonSyndicatedAbsenceRate}%
           </div>
-          <span className="text-[11px] text-slate-500 block mt-1">
+          <span className="text-[10px] sm:text-[11px] text-slate-500 block mt-1 leading-snug">
             {kpis.syndicatedAbsences} sind. / {kpis.nonSyndicatedAbsences} no sind.
           </span>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
-            Incidencias de Marcaje
+        <div className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 block">
+            Incidencias Marcaje
           </span>
-          <span className="text-2xl font-bold text-amber-600 mt-1 block">
+          <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight text-amber-600 mt-1 block tracking-tight">
             {kpis.punchIncidentsCount}
           </span>
-          <span className="text-[11px] text-slate-500 block mt-1">1 marcaje faltante (revisión)</span>
+          <span className="text-[10px] sm:text-[11px] text-slate-500 block mt-1 leading-snug">
+            1 marcaje faltante (revisión)
+          </span>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
+        <div className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 block">
             Ausencias Recurrentes
           </span>
-          <span className="text-2xl font-bold text-rose-600 mt-1 block">
+          <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight text-rose-600 mt-1 block tracking-tight">
             {recurrentCollabs.length}
           </span>
-          <span className="text-[11px] text-slate-500 block mt-1">
+          <span className="text-[10px] sm:text-[11px] text-slate-500 block mt-1 leading-snug">
             Colaboradores con 2+ ausencias
           </span>
         </div>
@@ -413,12 +419,19 @@ export const AttendanceAnalysisView: React.FC<AttendanceAnalysisViewProps> = ({
           Porcentaje calculado sobre jornadas programadas de cada departamento
         </p>
 
-        <div className="h-64">
+        <div className="h-[230px] sm:h-[300px] lg:h-[340px] w-full min-w-0">
           {deptRanking.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={deptRanking} margin={{ top: 25, right: 10, left: 0, bottom: 20 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
+              <BarChart data={deptRanking} margin={{ top: 25, right: 10, left: 0, bottom: 25 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="department" tick={{ fontSize: 10 }} />
+                <XAxis
+                  dataKey="department"
+                  tick={{ fontSize: 10, fill: '#64748b' }}
+                  interval={0}
+                  angle={-35}
+                  textAnchor="end"
+                  height={55}
+                />
                 <YAxis unit="%" tick={{ fontSize: 11 }} />
                 <Tooltip
                   labelFormatter={(label) => `Departamento: ${label}`}
@@ -516,7 +529,7 @@ export const AttendanceAnalysisView: React.FC<AttendanceAnalysisViewProps> = ({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
               <tr>

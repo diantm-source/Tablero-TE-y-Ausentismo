@@ -128,7 +128,7 @@ export const MultiSelectFilterDropdown: React.FC<MultiSelectFilterDropdownProps>
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className={`w-full bg-slate-800 border ${
+          className={`w-full min-h-[42px] sm:min-h-[38px] bg-slate-800 border ${
             isOpen ? 'border-blue-500 ring-1 ring-blue-500/30' : 'border-slate-700 hover:border-slate-600'
           } rounded-xl px-3 py-2 text-slate-100 flex items-center justify-between shadow-xs text-xs cursor-pointer transition-colors text-left`}
           aria-expanded={isOpen}

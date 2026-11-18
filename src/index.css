@@ -1,2 +1,14 @@
 @import "tailwindcss";
 @import "bootstrap-icons/font/bootstrap-icons.css";
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+

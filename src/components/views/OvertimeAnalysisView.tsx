@@ -587,7 +587,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800">
@@ -599,7 +599,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
               <span>{summaryKPIs.uniqueCollaborators} trabajadores ({summaryKPIs.totalRecords} registros) en selección</span>
             </span>
           </div>
-          <h2 className="text-xl font-bold text-slate-900">Análisis y Auditoría de Tiempo Extra</h2>
+          <h2 className="text-lg sm:text-2xl font-bold text-slate-900">Análisis y Auditoría de Tiempo Extra</h2>
           <p className="text-xs text-slate-600 mt-0.5">
             Sincronización multi-hoja de la Matriz Semanal y desglose de Horas Extra vs Prolongación de jornada.
           </p>
@@ -614,114 +614,114 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
       </div>
 
       {/* 5 KPI Cards Summary (Comparativas contra el total global) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-4">
         {/* 1. Registros Totales */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+        <div className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700">
               Registros Totales
             </span>
-            <span className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-              <i className="bi bi-list-check text-sm"></i>
+            <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <i className="bi bi-list-check text-xs sm:text-sm"></i>
             </span>
           </div>
-          <div className="mt-2">
-            <div className="text-2xl font-black text-slate-900">
+          <div>
+            <div className="text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight text-slate-900">
               {summaryKPIs.totalRecords.toLocaleString('es-MX')}
             </div>
-            <div className="text-[11px] text-slate-500 mt-0.5">
-              de <strong className="text-slate-700">{globalKPIs.totalRecords.toLocaleString('es-MX')}</strong> registros en total ({calcPct(summaryKPIs.totalRecords, globalKPIs.totalRecords)}%)
+            <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 leading-snug">
+              de <strong className="text-slate-700">{globalKPIs.totalRecords.toLocaleString('es-MX')}</strong> total ({calcPct(summaryKPIs.totalRecords, globalKPIs.totalRecords)}%)
             </div>
           </div>
         </div>
 
         {/* 2. Horas Extra Totales */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+        <div className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700">
               Horas Extra Totales
             </span>
-            <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <i className="bi bi-clock-fill text-sm"></i>
+            <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+              <i className="bi bi-clock-fill text-xs sm:text-sm"></i>
             </span>
           </div>
-          <div className="mt-2">
-            <div className="text-2xl font-black text-indigo-600">
+          <div>
+            <div className="text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight text-indigo-600">
               {summaryKPIs.totalHoras.toFixed(1)} hrs
             </div>
-            <div className="text-[11px] text-slate-500 mt-0.5">
-              de <strong className="text-slate-700">{globalKPIs.totalHoras.toFixed(1)}</strong> hrs en total ({calcPct(summaryKPIs.totalHoras, globalKPIs.totalHoras)}%)
+            <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 leading-snug">
+              de <strong className="text-slate-700">{globalKPIs.totalHoras.toFixed(1)}</strong> hrs ({calcPct(summaryKPIs.totalHoras, globalKPIs.totalHoras)}%)
             </div>
           </div>
         </div>
 
         {/* 3. Horas Extra */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+        <div className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700">
               Horas Extra
             </span>
-            <span className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
-              <i className="bi bi-lightning-charge-fill text-sm"></i>
+            <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+              <i className="bi bi-lightning-charge-fill text-xs sm:text-sm"></i>
             </span>
           </div>
-          <div className="mt-2">
-            <div className="text-2xl font-black text-sky-600">
+          <div>
+            <div className="text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight text-sky-600">
               {summaryKPIs.totalNormal.toFixed(1)} hrs
             </div>
-            <div className="text-[11px] text-slate-500 mt-0.5">
-              de <strong className="text-slate-700">{globalKPIs.totalNormal.toFixed(1)}</strong> hrs TE ({calcPct(summaryKPIs.totalNormal, globalKPIs.totalNormal)}%)
+            <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 leading-snug">
+              de <strong className="text-slate-700">{globalKPIs.totalNormal.toFixed(1)}</strong> hrs ({calcPct(summaryKPIs.totalNormal, globalKPIs.totalNormal)}%)
             </div>
           </div>
         </div>
 
         {/* 4. Prolongación de jornada */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Prolongación de jornada
+        <div className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700">
+              Prolongación jornada
             </span>
-            <span className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-              <i className="bi bi-hourglass-split text-sm"></i>
+            <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+              <i className="bi bi-hourglass-split text-xs sm:text-sm"></i>
             </span>
           </div>
-          <div className="mt-2">
-            <div className="text-2xl font-black text-amber-600">
+          <div>
+            <div className="text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight text-amber-600">
               {summaryKPIs.totalProlongacion.toFixed(1)} hrs
             </div>
-            <div className="text-[11px] text-slate-500 mt-0.5">
-              de <strong className="text-slate-700">{globalKPIs.totalProlongacion.toFixed(1)}</strong> hrs Prolongación ({calcPct(summaryKPIs.totalProlongacion, globalKPIs.totalProlongacion)}%)
+            <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 leading-snug">
+              de <strong className="text-slate-700">{globalKPIs.totalProlongacion.toFixed(1)}</strong> hrs ({calcPct(summaryKPIs.totalProlongacion, globalKPIs.totalProlongacion)}%)
             </div>
           </div>
         </div>
 
         {/* 5. Trabajadores Únicos */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider" title="Número real de colaboradores identificados por su número de control (ID único)">
+        <div className="col-span-2 sm:col-span-1 lg:col-span-1 bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700" title="Número real de colaboradores identificados por su número de control (ID único)">
               Trabajadores Únicos
             </span>
-            <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <i className="bi bi-people-fill text-sm"></i>
+            <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <i className="bi bi-people-fill text-xs sm:text-sm"></i>
             </span>
           </div>
-          <div className="mt-2">
-            <div className="text-2xl font-black text-emerald-700">
+          <div>
+            <div className="text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight text-emerald-700">
               {summaryKPIs.uniqueCollaborators.toLocaleString('es-MX')}
             </div>
-            <div className="text-[11px] text-slate-500 mt-0.5">
-              de <strong className="text-slate-700">{globalKPIs.uniqueCollaborators.toLocaleString('es-MX')}</strong> trabajadores únicos ({calcPct(summaryKPIs.uniqueCollaborators, globalKPIs.uniqueCollaborators)}%)
+            <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 leading-snug">
+              de <strong className="text-slate-700">{globalKPIs.uniqueCollaborators.toLocaleString('es-MX')}</strong> únicos ({calcPct(summaryKPIs.uniqueCollaborators, globalKPIs.uniqueCollaborators)}%)
             </div>
           </div>
         </div>
       </div>
 
       {/* Sub-view Navigation Tabs */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
+      <div className="flex overflow-x-auto no-scrollbar gap-2 border-b border-slate-200 pb-1 -mx-2 px-2 sm:mx-0 sm:px-0">
         <button
           type="button"
           onClick={() => setActiveTab('general')}
-          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+          className={`whitespace-nowrap shrink-0 text-xs sm:text-sm px-3 py-2 font-bold rounded-lg transition-all flex items-center gap-2 ${
             activeTab === 'general'
               ? 'bg-blue-600 text-white shadow-sm'
               : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
@@ -734,20 +734,20 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('trafficLight')}
-          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+          className={`whitespace-nowrap shrink-0 text-xs sm:text-sm px-3 py-2 font-bold rounded-lg transition-all flex items-center gap-2 ${
             activeTab === 'trafficLight'
               ? 'bg-blue-600 text-white shadow-sm'
               : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
           }`}
         >
           <span aria-hidden="true">🚦</span>
-          <span>Semáforo Semanal por Trabajador</span>
+          <span>Semáforo Semanal</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('dashboard')}
-          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+          className={`whitespace-nowrap shrink-0 text-xs sm:text-sm px-3 py-2 font-bold rounded-lg transition-all flex items-center gap-2 ${
             activeTab === 'dashboard'
               ? 'bg-blue-600 text-white shadow-sm'
               : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
@@ -760,7 +760,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('pending')}
-          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+          className={`whitespace-nowrap shrink-0 text-xs sm:text-sm px-3 py-2 font-bold rounded-lg transition-all flex items-center gap-2 ${
             activeTab === 'pending'
               ? 'bg-blue-600 text-white shadow-sm'
               : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
@@ -966,10 +966,10 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                 </div>
               </div>
 
-              <div className="h-64 flex items-center justify-center">
+              <div className="h-[230px] sm:h-[300px] lg:h-[340px] flex items-center justify-center w-full min-w-0">
                 {deptOvertimeData.data.length > 0 ? (
                   deptChartType === 'bar' ? (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                       <BarChart
                         data={deptOvertimeData.data.slice(0, 8)}
                         layout="vertical"
@@ -1005,7 +1005,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                       <PieChart>
                         <Pie
                           data={deptOvertimeData.data.slice(0, 8)}
@@ -1094,10 +1094,10 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                 </div>
               </div>
 
-              <div className="h-64 flex items-center justify-center">
+              <div className="h-[230px] sm:h-[300px] lg:h-[340px] flex items-center justify-center w-full min-w-0">
                 {shiftDistributionData.grandTotal > 0 ? (
                   shiftChartType === 'bar' ? (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                       <BarChart data={shiftDistributionData.data} margin={{ top: 25, right: 15, left: 0, bottom: 10 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis dataKey="shortName" tick={{ fontSize: 11 }} />
@@ -1123,7 +1123,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                       <PieChart>
                         <Pie
                           data={shiftDistributionData.data}
@@ -1206,10 +1206,10 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
               </div>
             </div>
 
-            <div className="h-64 flex items-center justify-center">
+            <div className="h-[230px] sm:h-[300px] lg:h-[340px] flex items-center justify-center w-full min-w-0">
               {dailyDistributionData.grandTotal > 0 ? (
                 dayChartType === 'bar' ? (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                     <BarChart data={dailyDistributionData.data} margin={{ top: 25, right: 15, left: 0, bottom: 10 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis
@@ -1245,7 +1245,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                     <PieChart>
                       <Pie
                         data={dailyDistributionData.data.filter((d) => d.hours > 0)}
@@ -1331,10 +1331,10 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
               </button>
             </div>
           </div>
-          <div className="h-64">
+          <div className="h-[230px] sm:h-[300px] lg:h-[340px] w-full min-w-0">
             {trendMode === 'weekly' ? (
               kpis.weeklyMetrics.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                   <LineChart data={kpis.weeklyMetrics}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis
@@ -1376,7 +1376,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
               )
             ) : (
               kpis.dailyMetrics.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                   <LineChart data={kpis.dailyMetrics}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="date" tick={{ fontSize: 10 }} />
@@ -1417,9 +1417,9 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col">
           <h3 className="text-sm font-bold text-slate-900 mb-1">Distribución de Estados</h3>
           <p className="text-xs text-slate-500 mb-2">Proporción de solicitudes registradas</p>
-          <div className="flex-1 flex items-center justify-center min-h-[200px]">
+          <div className="flex-1 flex items-center justify-center h-[230px] sm:h-[300px] lg:h-[340px] w-full min-w-0">
             {kpis.statusDistribution.length > 0 ? (
-              <ResponsiveContainer width="100%" height={210}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                 <PieChart>
                   <Pie
                     data={kpis.statusDistribution}
@@ -1454,9 +1454,9 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
             Departamentos con Mayor Volumen de Tiempo Extra
           </h3>
           <p className="text-xs text-slate-500 mb-4">Horas aprobadas acumuladas por área</p>
-          <div className="h-64">
+          <div className="h-[230px] sm:h-[300px] lg:h-[340px] w-full min-w-0">
             {kpis.departmentsMetrics.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                 <BarChart
                   data={kpis.departmentsMetrics.slice(0, 6)}
                   layout="vertical"

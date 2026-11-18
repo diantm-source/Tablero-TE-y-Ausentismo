@@ -522,7 +522,7 @@ export const OvertimeGeneralView: React.FC<OvertimeGeneralViewProps> = ({
   return (
     <div className="space-y-4">
       {/* Banner Visual del Conector de Matriz Semanal */}
-      <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white rounded-xl p-4 border border-blue-900/60 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white rounded-2xl p-3.5 sm:p-5 border border-blue-900/60 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-400 flex items-center justify-center shrink-0">
             <i className="bi bi-file-earmark-spreadsheet-fill text-xl"></i>
@@ -557,55 +557,55 @@ export const OvertimeGeneralView: React.FC<OvertimeGeneralViewProps> = ({
       </div>
 
       {/* KPI Cards de Resumen del Concentrado */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+        <div className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Total Horas</span>
+            <span className="text-[11px] sm:text-xs font-bold text-slate-600 uppercase tracking-wider">Total Horas</span>
             <i className="bi bi-clock-history text-blue-500"></i>
           </div>
-          <div className="text-xl font-bold text-slate-900 font-mono">
+          <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono">
             {summaryKPIs.totalHoras.toLocaleString('es-MX')} hrs
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            {summaryKPIs.totalRecords.toLocaleString('es-MX')} registros en selección
+          <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 leading-snug">
+            {summaryKPIs.totalRecords.toLocaleString('es-MX')} registros
           </div>
         </div>
 
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Trabajadores Únicos</span>
+            <span className="text-[11px] sm:text-xs font-bold text-slate-600 uppercase tracking-wider">Únicos</span>
             <i className="bi bi-people-fill text-emerald-500"></i>
           </div>
-          <div className="text-xl font-bold text-slate-900 font-mono">
+          <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono">
             {summaryKPIs.uniqueCollaborators.toLocaleString('es-MX')}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            Colaboradores únicos registrados
+          <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 leading-snug">
+            Colaboradores únicos
           </div>
         </div>
 
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Horas Extra</span>
+            <span className="text-[11px] sm:text-xs font-bold text-slate-600 uppercase tracking-wider">Horas Extra</span>
             <i className="bi bi-stopwatch text-sky-500"></i>
           </div>
-          <div className="text-xl font-bold text-sky-700 font-mono">
+          <div className="text-xl sm:text-2xl font-black text-sky-700 font-mono">
             {summaryKPIs.totalNormal.toLocaleString('es-MX')} hrs
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
+          <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 leading-snug">
             {calcPct(summaryKPIs.totalNormal, summaryKPIs.totalHoras)}% del total
           </div>
         </div>
 
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Prolongación de jornada</span>
+            <span className="text-[11px] sm:text-xs font-bold text-slate-600 uppercase tracking-wider">Prolongación</span>
             <i className="bi bi-hourglass-split text-amber-500"></i>
           </div>
-          <div className="text-xl font-bold text-amber-700 font-mono">
+          <div className="text-xl sm:text-2xl font-black text-amber-700 font-mono">
             {summaryKPIs.totalProlongacion.toLocaleString('es-MX')} hrs
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
+          <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 leading-snug">
             {calcPct(summaryKPIs.totalProlongacion, summaryKPIs.totalHoras)}% del total
           </div>
         </div>
@@ -668,7 +668,7 @@ export const OvertimeGeneralView: React.FC<OvertimeGeneralViewProps> = ({
         </div>
 
         {/* Table Content */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 select-none">
               {table.getHeaderGroups().map((headerGroup) => (

@@ -930,7 +930,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
         </div>
 
         {/* Table Content */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 select-none">
               {table.getHeaderGroups().map((headerGroup) => (

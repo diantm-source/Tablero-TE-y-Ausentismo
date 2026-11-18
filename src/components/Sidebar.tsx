@@ -108,7 +108,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={item.id}
               onClick={() => onNavigate(item.id)}
               title={collapsed ? item.label : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all group cursor-pointer ${
+              className={`w-full min-h-[42px] flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all group cursor-pointer ${
                 isActive
                   ? 'bg-blue-600 text-white shadow-sm font-semibold'
                   : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'

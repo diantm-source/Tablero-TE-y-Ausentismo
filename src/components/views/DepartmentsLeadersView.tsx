@@ -155,7 +155,7 @@ export const DepartmentsLeadersView: React.FC<DepartmentsLeadersViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Banner */}
-      <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="px-2 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-800">
@@ -163,7 +163,7 @@ export const DepartmentsLeadersView: React.FC<DepartmentsLeadersViewProps> = ({
             </span>
             <span className="text-xs text-slate-500 font-medium">Catálogo verificado Base TE</span>
           </div>
-          <h2 className="text-xl font-bold text-slate-900">Departamentos y Líderes Responsables</h2>
+          <h2 className="text-lg sm:text-2xl font-bold text-slate-900">Departamentos y Líderes Responsables</h2>
           <p className="text-xs text-slate-600 mt-0.5">
             Fichas departamentales con balance de Tiempo Extra, Ausentismo y alertas de concentración simultánea.
           </p>

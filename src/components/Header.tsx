@@ -68,64 +68,117 @@ export const Header: React.FC<HeaderProps> = ({
   const syncLabel = formatSyncTimestampDisplay(lastSyncTimestamp);
 
   return (
-    <header className="mx-4 mt-3.5 mb-1.5 bg-[#0f172a] text-white px-8 py-6 min-h-[116px] rounded-3xl border border-white/15 shadow-[0_8px_30px_rgba(100,116,139,0.18)] shrink-0 z-30 transition-all flex flex-col justify-center">
-      <div className="flex items-center justify-between gap-3 sm:gap-6">
-        {/* Left: Mobile Menu Toggle + Large Logo + Title and Metadata */}
-        <div className="flex items-center gap-3 sm:gap-5 min-w-0">
-          {/* ☰ Menú Button (Mobile & Tablet only < 1024px) */}
-          <button
-            type="button"
-            onClick={onOpenMobileMenu}
-            className="lg:hidden p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/80 flex items-center justify-center shrink-0 cursor-pointer transition-colors"
-            title="Abrir menú de módulos"
-            aria-label="Abrir menú de módulos"
-          >
-            <i className="bi bi-list text-xl leading-none"></i>
-          </button>
+    <header className="mx-2 mt-2 mb-2 px-4 py-3.5 rounded-2xl lg:mx-4 lg:mt-4 lg:mb-1.5 lg:px-8 lg:py-6 lg:min-h-[116px] lg:rounded-3xl bg-[#0f172a] text-white border border-white/15 shadow-[0_8px_30px_rgba(100,116,139,0.18)] shrink-0 z-30 transition-all flex flex-col justify-center">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2.5 sm:gap-3.5 lg:gap-6 w-full">
+        {/* Fila Superior en Móvil / Lado Izquierdo en Escritorio */}
+        <div className="flex flex-col gap-2 min-w-0 w-full lg:w-auto">
+          {/* Fila Superior: Menú + Logo + Título + Filtros en móvil */}
+          <div className="flex items-center justify-between gap-2 w-full">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+              {/* ☰ Menú Button (Mobile & Tablet only < 1024px) */}
+              <button
+                type="button"
+                onClick={onOpenMobileMenu}
+                className="lg:hidden p-2 sm:p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/80 flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+                title="Abrir menú de módulos"
+                aria-label="Abrir menú de módulos"
+              >
+                <i className="bi bi-list text-xl leading-none"></i>
+              </button>
 
-          {/* Brand Logo Container (Ample and eye-catching) */}
-          <div className="h-16 w-16 sm:h-18 sm:w-18 p-2.5 rounded-2xl bg-white/95 flex items-center justify-center shrink-0 shadow-md border border-slate-700/50">
-            <img
-              src={`${import.meta.env.BASE_URL}logo.png`}
-              alt="Logo Polak Grupo"
-              className="h-full w-full object-contain"
-            />
+              {/* Brand Logo Container */}
+              <div className="h-10 w-10 sm:h-14 sm:w-14 lg:h-16 lg:w-16 p-1.5 sm:p-2 lg:p-2.5 rounded-xl sm:rounded-2xl bg-white/95 flex items-center justify-center shrink-0 shadow-md border border-slate-700/50">
+                <img
+                  src={`${(import.meta.env.BASE_URL || '/').replace(/\/$/, '')}/logo.png`}
+                  alt="Logo Polak Grupo"
+                  className="h-full w-full object-contain"
+                />
+              </div>
+
+              {/* Title & Metadata Hierarchy */}
+              <div className="min-w-0 flex flex-col justify-center">
+                <h1 className="text-lg sm:text-2xl lg:text-[30px] font-extrabold tracking-tight text-white truncate leading-tight">
+                  <span className="hidden sm:inline">Panel de Control de Ausentismo y TE</span>
+                  <span className="sm:hidden">PanelTEA-RH</span>
+                </h1>
+
+                {/* Desktop Metadata Row (lg+) */}
+                <div className="hidden lg:flex items-center gap-3 text-sm text-slate-300 mt-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                    <i className="bi bi-calendar3 text-blue-400 text-sm sm:text-base"></i>
+                    {dateRange ? (
+                      <span>
+                        Periodo: <strong className="text-white font-semibold">{dateRange.start}</strong> a{' '}
+                        <strong className="text-white font-semibold">{dateRange.end}</strong>
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">Sin datos cargados</span>
+                    )}
+                  </span>
+                  <span className="text-slate-600 text-xs">•</span>
+                  <span
+                    className="inline-flex items-center gap-1.5 text-slate-300 whitespace-nowrap"
+                    title="Fecha y hora de la última sincronización con la nube"
+                  >
+                    <i className="bi bi-cloud-check text-blue-400 text-sm sm:text-base"></i>
+                    <span>
+                      Última sincronización: <strong className="text-white font-semibold">{syncLabel}</strong>
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 🌪️ Filtros Button (Mobile & Tablet only < 1024px) */}
+            {showFiltersButton && (
+              <button
+                type="button"
+                onClick={onOpenMobileFilters}
+                className="lg:hidden px-2.5 py-1.5 sm:px-3.5 sm:py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700/80 flex items-center gap-1.5 text-xs sm:text-sm font-semibold shadow-sm transition-all cursor-pointer shrink-0"
+                title="Abrir panel de filtros globales"
+                aria-label="Abrir panel de filtros globales"
+              >
+                <span className="text-xs sm:text-sm leading-none" aria-hidden="true">
+                  🌪️
+                </span>
+                <span>Filtros</span>
+                {activeFiltersCount > 0 && (
+                  <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full min-w-[18px] text-center shadow-xs">
+                    {activeFiltersCount}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
 
-          {/* Title & Metadata Hierarchy */}
-          <div className="min-w-0 flex flex-col justify-center">
-            <h1 className="text-2xl sm:text-3xl lg:text-[32px] font-extrabold tracking-tight text-white truncate leading-tight">
-              Panel de Control de Ausentismo y TE
-            </h1>
-
-            <div className="hidden sm:flex items-center gap-3 text-sm text-slate-300 mt-2 flex-wrap">
-              <span className="inline-flex items-center gap-1.5">
-                <i className="bi bi-calendar3 text-blue-400 text-sm sm:text-base"></i>
-                {dateRange ? (
-                  <span>
-                    Periodo: <strong className="text-white font-semibold">{dateRange.start}</strong> a{' '}
-                    <strong className="text-white font-semibold">{dateRange.end}</strong>
-                  </span>
-                ) : (
-                  <span className="text-slate-400">Sin datos cargados</span>
-                )}
-              </span>
-              <span className="text-slate-600 text-xs">•</span>
-              <span
-                className="inline-flex items-center gap-1.5 text-slate-300"
-                title="Fecha y hora de la última sincronización con la nube"
-              >
-                <i className="bi bi-cloud-check text-blue-400 text-sm sm:text-base"></i>
+          {/* Fila Media en Móvil (< lg) */}
+          <div className="flex lg:hidden text-xs sm:text-sm text-slate-300 flex-wrap items-center gap-x-3 gap-y-1 w-full pt-1">
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+              <i className="bi bi-calendar3 text-blue-400 text-xs sm:text-sm"></i>
+              {dateRange ? (
                 <span>
-                  Última sincronización: <strong className="text-white font-semibold">{syncLabel}</strong>
+                  Periodo: <strong className="text-white font-semibold">{dateRange.start}</strong> a{' '}
+                  <strong className="text-white font-semibold">{dateRange.end}</strong>
                 </span>
+              ) : (
+                <span className="text-slate-400">Sin datos cargados</span>
+              )}
+            </span>
+            <span className="text-slate-600 text-xs hidden xs:inline">•</span>
+            <span
+              className="inline-flex items-center gap-1.5 text-slate-300 whitespace-nowrap"
+              title="Fecha y hora de la última sincronización con la nube"
+            >
+              <i className="bi bi-cloud-check text-blue-400 text-xs sm:text-sm"></i>
+              <span>
+                Última sincronización: <strong className="text-white font-semibold">{syncLabel}</strong>
               </span>
-            </div>
+            </span>
           </div>
         </div>
 
-        {/* Right: Actions Toolbar */}
-        <div className="flex items-center gap-2 sm:gap-3.5 shrink-0">
+        {/* Fila Inferior de Acciones en Móvil / Toolbar alineada a la derecha en Escritorio */}
+        <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full lg:w-auto lg:shrink-0 pt-0.5 lg:pt-0">
           {/* Notification Toast */}
           {toast && (
             <div
@@ -146,40 +199,19 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
-          {/* 🌪️ Filtros Button (Mobile & Tablet only < 1024px) */}
-          {showFiltersButton && (
-            <button
-              type="button"
-              onClick={onOpenMobileFilters}
-              className="lg:hidden px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700/80 flex items-center gap-1.5 text-sm font-semibold shadow-sm transition-all cursor-pointer relative"
-              title="Abrir panel de filtros globales"
-              aria-label="Abrir panel de filtros globales"
-            >
-              <span className="text-sm leading-none" aria-hidden="true">
-                🌪️
-              </span>
-              <span className="hidden xs:inline">Filtros</span>
-              {activeFiltersCount > 0 && (
-                <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full min-w-[18px] text-center shadow-xs">
-                  {activeFiltersCount}
-                </span>
-              )}
-            </button>
-          )}
-
           {/* Manual Import Button */}
           <button
             onClick={() => onNavigate('import')}
-            className={`px-5 py-3 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-sm cursor-pointer ${
+            className={`py-2 px-3 sm:px-5 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer ${
               currentSection === 'import'
                 ? 'bg-blue-600 text-white ring-2 ring-blue-400'
                 : 'bg-blue-600/90 hover:bg-blue-600 text-white hover:shadow-md'
             }`}
             title="Importar archivos de respaldo locales (.xlsx, .xls o .csv)"
           >
-            <i className="bi bi-cloud-arrow-up-fill text-base"></i>
-            <span className="hidden md:inline">Importar BioTime (.xlsx / .csv)</span>
-            <span className="md:hidden">Importar</span>
+            <i className="bi bi-cloud-arrow-up-fill text-sm sm:text-base"></i>
+            <span className="hidden lg:inline">Importar BioTime (.xlsx / .csv)</span>
+            <span className="lg:hidden">Importar</span>
           </button>
 
           {/* Sincronizar / Actualizar Button */}
@@ -187,37 +219,17 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={handleSyncOrRefresh}
             disabled={loadingActive}
             title="Sincronizar automáticamente con Google Sheets / Servidor en la nube"
-            className="px-5 py-3 rounded-xl text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700/80 flex items-center gap-2 transition-all shadow-sm active:scale-95 disabled:opacity-75 cursor-pointer"
+            className="py-2 px-3 sm:px-5 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700/80 flex items-center justify-center gap-2 transition-all shadow-sm active:scale-95 disabled:opacity-75 cursor-pointer"
           >
             <i
               className={`bi ${
                 loadingActive ? 'bi-arrow-repeat animate-spin text-blue-400' : 'bi-arrow-clockwise text-blue-400'
-              } text-base`}
+              } text-sm sm:text-base`}
             ></i>
-            <span className="hidden sm:inline">{loadingActive ? 'Sincronizando...' : 'Sincronizar'}</span>
+            <span>{loadingActive ? 'Sincronizando...' : 'Sincronizar'}</span>
           </button>
         </div>
       </div>
-
-      {/* Mobile-only secondary info bar */}
-      {(dateRange || syncLabel) && (
-        <div className="flex sm:hidden items-center justify-between gap-2 text-xs text-slate-300 mt-2.5 pt-2.5 border-t border-slate-800/80">
-          <span className="truncate">
-            {dateRange ? (
-              <span>
-                Periodo: <strong>{dateRange.start}</strong> a <strong>{dateRange.end}</strong>
-              </span>
-            ) : (
-              <span className="text-slate-400">Sin datos cargados</span>
-            )}
-          </span>
-          {syncLabel && (
-            <span className="text-slate-400 text-xs shrink-0 truncate max-w-[160px]">
-              Sync: {syncLabel.split(',')[0]}
-            </span>
-          )}
-        </div>
-      )}
     </header>
   );
 };

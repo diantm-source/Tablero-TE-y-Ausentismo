@@ -479,6 +479,20 @@ export default function App() {
     return count;
   }, [filters]);
 
+  // Disparar evento de resize al colapsar/expandir filtros o barra lateral para evitar que las gráficas de Recharts se queden en blanco
+  useEffect(() => {
+    const t1 = setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 50);
+    const t2 = setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 320);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [filtersCollapsed, sidebarCollapsed]);
+
   const handleFilterChange = (updated: Partial<GlobalFilterState>) => {
     setFilters((prev) => ({ ...prev, ...updated }));
   };
@@ -613,7 +627,7 @@ export default function App() {
         )}
 
         {/* Content Area (Scroll independiente únicamente en tablas y gráficas) */}
-        <main className="flex-1 min-w-0 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 space-y-6">
+        <main className="flex-1 min-w-0 overflow-y-auto p-2.5 sm:p-4 md:p-6 lg:p-8 space-y-4 sm:space-y-6">
           <Suspense fallback={<ViewSkeleton />}>
             {currentSection === 'executive' && (
               <ExecutiveSummaryView
@@ -721,7 +735,7 @@ export default function App() {
             onClick={() => setMobileMenuOpen(false)}
             aria-hidden="true"
           />
-          <div className="relative w-72 max-w-[85vw] h-full bg-slate-900 z-10 shadow-2xl flex flex-col animate-in slide-in-from-left duration-250">
+          <div className="relative w-[88vw] max-w-[340px] h-full bg-slate-900 z-10 shadow-2xl flex flex-col animate-in slide-in-from-left duration-250">
             <div className="p-3.5 border-b border-slate-800 flex items-center justify-between text-white">
               <div className="flex items-center gap-2">
                 <i className="bi bi-grid-fill text-blue-400"></i>
@@ -762,7 +776,7 @@ export default function App() {
             onClick={() => setMobileFiltersOpen(false)}
             aria-hidden="true"
           />
-          <div className="relative w-80 max-w-[90vw] h-full bg-slate-900 z-10 shadow-2xl flex flex-col animate-in slide-in-from-right duration-250">
+          <div className="relative w-[88vw] max-w-[340px] h-full bg-slate-900 z-10 shadow-2xl flex flex-col animate-in slide-in-from-right duration-250">
             <div className="p-3.5 border-b border-slate-800 flex items-center justify-between text-white">
               <div className="flex items-center gap-2">
                 <span className="text-sm" aria-hidden="true">🌪️</span>
@@ -813,7 +827,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setMobileFiltersOpen(false)}
-                className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98"
+                className="w-full min-h-[42px] py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98"
               >
                 <i className="bi bi-check2 text-base"></i>
                 <span>Aplicar / Cerrar Filtros</span>
