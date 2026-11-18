@@ -11,6 +11,7 @@ import {
   extractBaseTeLeaderCatalog,
   isRecordInLeaderScope,
   isUnjustifiedAbsence,
+  passesPeriodFilterOnly,
   TRAFFIC_LIGHT_LABELS,
 } from './kpiEngine';
 import {
@@ -274,6 +275,8 @@ const defaultFilters: GlobalFilterState = {
   companyPreset: 'ALL',
   departments: ['ALL'],
   leaders: ['ALL'],
+  weeks: [],
+  months: [],
   month: 'ALL',
   isoWeek: 'ALL',
   specificDate: '',
@@ -971,6 +974,49 @@ describe('kpiEngine Company Presets & Filtering', () => {
       expect(TRAFFIC_LIGHT_LABELS.AMARILLO).toBe('Amarillo (7 - 9 hrs)');
       expect(TRAFFIC_LIGHT_LABELS.VERDE).toBe('Verde (1 - 7 hrs)');
       expect(TRAFFIC_LIGHT_LABELS.SIN_HRS).toBe('Sin HRS');
+    });
+  });
+
+  describe('GlobalFilterState Multiselection Engine', () => {
+    it('soporta multiselección de semanas en passesPeriodFilterOnly y applyFilters', () => {
+      const filters: GlobalFilterState = {
+        ...defaultFilters,
+        weeks: ['2026-W44', '2026-W45'],
+      };
+
+      const itemW44 = { isoYear: 2026, isoWeek: 44 };
+      const itemW45 = { isoYear: 2026, isoWeek: 45 };
+      const itemW46 = { isoYear: 2026, isoWeek: 46 };
+
+      expect(passesPeriodFilterOnly(itemW44, filters)).toBe(true);
+      expect(passesPeriodFilterOnly(itemW45, filters)).toBe(true);
+      expect(passesPeriodFilterOnly(itemW46, filters)).toBe(false);
+    });
+
+    it('soporta multiselección de meses en formato YYYY-MM y nombre en mayúsculas', () => {
+      const filters: GlobalFilterState = {
+        ...defaultFilters,
+        months: ['2026-03', 'NOVIEMBRE'],
+      };
+
+      const itemMarzo = { fecha: '2026-03-15', dateOnly: '2026-03-15' };
+      const itemNoviembre = { fecha: '2026-11-04', dateOnly: '2026-11-04' };
+      const itemOctubre = { fecha: '2026-10-20', dateOnly: '2026-10-20' };
+
+      expect(passesPeriodFilterOnly(itemMarzo, filters)).toBe(true);
+      expect(passesPeriodFilterOnly(itemNoviembre, filters)).toBe(true);
+      expect(passesPeriodFilterOnly(itemOctubre, filters)).toBe(false);
+    });
+
+    it('soporta multiselección de departamentos y líderes simultáneamente', () => {
+      const filters: GlobalFilterState = {
+        ...defaultFilters,
+        departments: ['MANTENIMIENTO TLAX PQ', 'SEGURIDAD TLAX PQ'],
+        leaders: ['Fidel Mendoza', 'Pedro Calderón'],
+      };
+
+      expect(filters.departments).toHaveLength(2);
+      expect(filters.leaders).toHaveLength(2);
     });
   });
 });

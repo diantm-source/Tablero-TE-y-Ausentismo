@@ -26,7 +26,9 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  LabelList,
 } from 'recharts';
+import { formatMonthNameDisplay } from '../../services/kpiEngine';
 
 export interface ExecutiveSummaryViewProps {
   kpis: FilteredKPIs;
@@ -59,6 +61,8 @@ const DEFAULT_FILTER_FALLBACK: GlobalFilterState = {
   companyPreset: 'ALL',
   departments: [],
   leaders: [],
+  weeks: [],
+  months: [],
   month: 'ALL',
   isoWeek: 'ALL',
   specificDate: '',
@@ -113,14 +117,21 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
   // Contexto del periodo temporal activo para badges de las gráficas
   const periodLabel = useMemo(() => {
     const parts: string[] = [];
-    if (filters.isoWeek && filters.isoWeek !== 'ALL') {
+    if (filters.weeks && filters.weeks.length > 0 && !filters.weeks.includes('ALL')) {
+      parts.push(`Semana ${filters.weeks.map((w) => w.split('-W')[1] || w).join(', ')}`);
+    } else if (filters.isoWeek && filters.isoWeek !== 'ALL') {
       parts.push(`Semana ${filters.isoWeek.split('-W')[1] || filters.isoWeek}`);
     }
-    if (filters.month && filters.month !== 'ALL') {
-      parts.push(`Mes: ${filters.month}`);
+
+    if (filters.months && filters.months.length > 0 && !filters.months.includes('ALL')) {
+      parts.push(
+        `Mes: ${filters.months.map((m) => formatMonthNameDisplay(m)).join(', ')}`
+      );
+    } else if (filters.month && filters.month !== 'ALL') {
+      parts.push(`Mes: ${formatMonthNameDisplay(filters.month)}`);
     }
     return parts.length > 0 ? parts.join(' • ') : 'Periodo Completo Acumulado';
-  }, [filters.isoWeek, filters.month]);
+  }, [filters.weeks, filters.months, filters.isoWeek, filters.month]);
 
   // Tooltip personalizado para Gráfica 1 (Tiempo Extra por Departamento)
   const CustomOvertimeTooltip = ({ active, payload }: any) => {
@@ -196,74 +207,13 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Banner de Contexto y Semáforos Ejecutivos */}
-      <div className="bg-slate-900 text-white rounded-xl p-5 shadow-sm border border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="px-2.5 py-0.5 text-xs font-semibold rounded bg-blue-600/30 text-blue-300 border border-blue-500/40">
-              Consolidado BioTime & Google Sheets
-            </span>
-            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-indigo-950/80 text-indigo-300 border border-indigo-700/60 flex items-center gap-1">
-              <i className="bi bi-calendar3 text-[11px] text-indigo-400"></i>
-              <span>{periodLabel}</span>
-            </span>
-            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 flex items-center gap-1">
-              <i className="bi bi-funnel-fill text-[11px] text-emerald-400"></i>
-              <span>Filtros Activos</span>
-            </span>
-          </div>
-          <h2 className="text-xl font-bold tracking-tight">Resumen Ejecutivo y Semáforo de Control</h2>
-          <p className="text-xs text-slate-300 mt-1 max-w-2xl">
-            Monitoreo en tiempo real de tiempo extraordinario (horas normales + prolongación de jornada) e incidencias de ausentismo justificadas e injustificadas respaldadas en datos reales.
-          </p>
-        </div>
-
-        {/* Semáforos de Control Global */}
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="bg-slate-800/90 rounded-lg p-3 border border-slate-700 text-center min-w-[140px]">
-            <span className="text-[11px] text-slate-400 uppercase tracking-wider block font-semibold mb-1">
-              Semáforo Ausentismo
-            </span>
-            <div className="flex items-center justify-center gap-2">
-              <span
-                className={`w-3.5 h-3.5 rounded-full ${
-                  kpis.absenceSemaphore === 'VERDE'
-                    ? 'bg-emerald-500 ring-4 ring-emerald-500/20'
-                    : kpis.absenceSemaphore === 'AMARILLO'
-                    ? 'bg-amber-500 ring-4 ring-amber-500/20'
-                    : 'bg-rose-500 ring-4 ring-rose-500/20'
-                }`}
-              ></span>
-              <span className="font-bold text-sm tracking-wide">
-                {kpis.absenceRate}% ({kpis.absenceSemaphore})
-              </span>
-            </div>
-          </div>
-
-          <div className="bg-slate-800/90 rounded-lg p-3 border border-slate-700 text-center min-w-[140px]">
-            <span className="text-[11px] text-slate-400 uppercase tracking-wider block font-semibold mb-1">
-              Semáforo TE Pendiente
-            </span>
-            <div className="flex items-center justify-center gap-2">
-              <span
-                className={`w-3.5 h-3.5 rounded-full ${
-                  kpis.overtimeSemaphore === 'VERDE'
-                    ? 'bg-emerald-500 ring-4 ring-emerald-500/20'
-                    : kpis.overtimeSemaphore === 'AMARILLO'
-                    ? 'bg-amber-500 ring-4 ring-amber-500/20'
-                    : 'bg-rose-500 ring-4 ring-rose-500/20'
-                }`}
-              ></span>
-              <span className="font-bold text-sm tracking-wide">
-                {kpis.totalPendingHours} hrs ({kpis.overtimeSemaphore})
-              </span>
-            </div>
-          </div>
-        </div>
+      {/* Banner Superior Simplificado */}
+      <div className="bg-slate-900 text-white rounded-xl py-4 px-6 shadow-sm border border-slate-800 flex items-center">
+        <h2 className="text-xl font-bold tracking-tight text-white">Resumen General</h2>
       </div>
 
       {/* ========================================================================= */}
-      {/* 5 INDICADORES CLAVE (KPI CARDS EN RESUMEN EJECUTIVO)                       */}
+      {/* 5 INDICADORES CLAVE (KPI CARDS EN RESUMEN GENERAL)                        */}
       {/* Reactivos a Semana, Mes, Departamento y Líder de Área                     */}
       {/* ========================================================================= */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -294,11 +244,11 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
           </div>
         </div>
 
-        {/* KPI 2: Ausencias sin Justificación */}
+        {/* KPI 2: Faltas injustificadas */}
         <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Ausencias sin Justificación</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Faltas injustificadas</span>
               <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
                 <i className="bi bi-person-x-fill text-base"></i>
               </div>
@@ -321,11 +271,11 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
           </div>
         </div>
 
-        {/* KPI 3: Ausencias con Justificación */}
+        {/* KPI 3: Faltas justificadas */}
         <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Ausencias con Justificación</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Faltas justificadas</span>
               <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                 <i className="bi bi-clipboard-check-fill text-base"></i>
               </div>
@@ -348,11 +298,11 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
           </div>
         </div>
 
-        {/* KPI 4: Mayor Volumen de Tiempo Extra */}
+        {/* KPI 4: Área con mayor TE */}
         <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Mayor Volumen TE</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Área con mayor TE</span>
               <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
                 <i className="bi bi-lightning-charge-fill text-base"></i>
               </div>
@@ -372,11 +322,11 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
           </div>
         </div>
 
-        {/* KPI 5: Mayor Tasa de Ausentismo */}
+        {/* KPI 5: Área con mayor ausentismo */}
         <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Mayor Tasa Ausentismo</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Área con mayor ausentismo</span>
               <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
                 <i className="bi bi-shield-exclamation text-base"></i>
               </div>
@@ -457,7 +407,7 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
                   {otChartType === 'bar' ? (
                     <BarChart
                       data={overtimeChart.slice(0, 10)}
-                      margin={{ top: 10, right: 10, left: -15, bottom: 25 }}
+                      margin={{ top: 25, right: 10, left: -15, bottom: 25 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis
@@ -478,7 +428,18 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
                         name="Horas TE"
                         fill="#3b82f6"
                         radius={[4, 4, 0, 0]}
-                      />
+                      >
+                        <LabelList
+                          dataKey="hours"
+                          position="top"
+                          formatter={(val: any) => {
+                            const num = Number(val) || 0;
+                            const formatted = num % 1 === 0 ? num.toString() : num.toFixed(1);
+                            return `${formatted} hrs`;
+                          }}
+                          style={{ fill: '#1e293b', fontSize: 10, fontWeight: 700 }}
+                        />
+                      </Bar>
                     </BarChart>
                   ) : (
                     <PieChart>
@@ -628,7 +589,7 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
                   {absChartType === 'bar' ? (
                     <BarChart
                       data={absenceChart.slice(0, 10)}
-                      margin={{ top: 10, right: 10, left: -15, bottom: 25 }}
+                      margin={{ top: 25, right: 10, left: -15, bottom: 25 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis
@@ -649,7 +610,17 @@ export const ExecutiveSummaryView: React.FC<ExecutiveSummaryViewProps> = ({
                         name="Ausencias"
                         fill="#e11d48"
                         radius={[4, 4, 0, 0]}
-                      />
+                      >
+                        <LabelList
+                          dataKey="absences"
+                          position="top"
+                          formatter={(val: any) => {
+                            const num = Number(val) || 0;
+                            return num % 1 === 0 ? num.toString() : num.toFixed(1);
+                          }}
+                          style={{ fill: '#1e293b', fontSize: 11, fontWeight: 700 }}
+                        />
+                      </Bar>
                     </BarChart>
                   ) : (
                     <PieChart>

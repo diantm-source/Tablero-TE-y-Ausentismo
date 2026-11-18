@@ -21,6 +21,7 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  LabelList,
 } from 'recharts';
 import {
   AbsenceRecord,
@@ -201,21 +202,39 @@ export const AbsenceConcentratedView: React.FC<AbsenceConcentratedViewProps> = (
         }
       }
 
-      // ISO Week filter
-      if (filters.isoWeek && filters.isoWeek !== 'ALL') {
+      // ISO Week filter (Multiselección)
+      const selectedWeeks =
+        filters.weeks && filters.weeks.length > 0
+          ? filters.weeks
+          : filters.isoWeek && filters.isoWeek !== 'ALL'
+          ? [filters.isoWeek]
+          : [];
+      if (selectedWeeks.length > 0 && !selectedWeeks.includes('ALL')) {
         const recWeekKey = `${rec.isoYear}-W${String(rec.weekNumber).padStart(2, '0')}`;
-        if (recWeekKey !== filters.isoWeek) {
-          return false;
-        }
+        const matchesWeek = selectedWeeks.some((w) => w === recWeekKey);
+        if (!matchesWeek) return false;
       }
 
-      // Month filter (YYYY-MM)
-      if (filters.month && filters.month !== 'ALL') {
-        const startMatches = rec.startDate && rec.startDate.startsWith(filters.month);
-        const endMatches = rec.endDate && rec.endDate.startsWith(filters.month);
-        if (!startMatches && !endMatches) {
+      // Month filter (Multiselección)
+      const selectedMonths =
+        filters.months && filters.months.length > 0
+          ? filters.months
+          : filters.month && filters.month !== 'ALL'
+          ? [filters.month]
+          : [];
+      if (selectedMonths.length > 0 && !selectedMonths.includes('ALL')) {
+        const matchesMonth = selectedMonths.some((m) => {
+          if (m === 'ALL') return true;
+          const startMatches = rec.startDate && rec.startDate.startsWith(m);
+          const endMatches = rec.endDate && rec.endDate.startsWith(m);
+          if (startMatches || endMatches) return true;
+          const mNorm = m.toUpperCase().trim();
+          const mNum = mNorm.includes('-') ? mNorm.split('-')[1].padStart(2, '0') : mNorm.padStart(2, '0');
+          if (rec.startDate && rec.startDate.slice(5, 7) === mNum) return true;
+          if (rec.endDate && rec.endDate.slice(5, 7) === mNum) return true;
           return false;
-        }
+        });
+        if (!matchesMonth) return false;
       }
 
       // Specific date filter (checks range overlap)
@@ -800,7 +819,7 @@ export const AbsenceConcentratedView: React.FC<AbsenceConcentratedViewProps> = (
           <div className="h-72">
             {chart1Data.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chart1Data} margin={{ top: 8, right: 12, left: 0, bottom: 20 }}>
+                <BarChart data={chart1Data} margin={{ top: 25, right: 12, left: 0, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis
                     dataKey="label"
@@ -824,7 +843,16 @@ export const AbsenceConcentratedView: React.FC<AbsenceConcentratedViewProps> = (
                     stackId="abs"
                     fill="#e11d48"
                     radius={chartBreakdown === 'UNJUSTIFIED' ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                  />
+                  >
+                    {chartBreakdown === 'UNJUSTIFIED' && (
+                      <LabelList
+                        dataKey="injustificadas"
+                        position="top"
+                        formatter={(val: any) => (Number(val) > 0 ? String(val) : '')}
+                        style={{ fill: '#1e293b', fontSize: 10, fontWeight: 700 }}
+                      />
+                    )}
+                  </Bar>
                   {chartBreakdown === 'ALL' && (
                     <Bar
                       dataKey="otras"
@@ -832,7 +860,14 @@ export const AbsenceConcentratedView: React.FC<AbsenceConcentratedViewProps> = (
                       stackId="abs"
                       fill="#3b82f6"
                       radius={[4, 4, 0, 0]}
-                    />
+                    >
+                      <LabelList
+                        dataKey="total"
+                        position="top"
+                        formatter={(val: any) => (Number(val) > 0 ? String(val) : '')}
+                        style={{ fill: '#1e293b', fontSize: 10, fontWeight: 700 }}
+                      />
+                    </Bar>
                   )}
                 </BarChart>
               </ResponsiveContainer>
@@ -892,7 +927,7 @@ export const AbsenceConcentratedView: React.FC<AbsenceConcentratedViewProps> = (
                     <BarChart
                       data={typeDistributionData}
                       layout="vertical"
-                      margin={{ top: 4, right: 20, left: 10, bottom: 4 }}
+                      margin={{ top: 4, right: 35, left: 10, bottom: 4 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                       <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
@@ -917,6 +952,12 @@ export const AbsenceConcentratedView: React.FC<AbsenceConcentratedViewProps> = (
                         }}
                       />
                       <Bar dataKey="absences" name="Ausencias" radius={[0, 4, 4, 0]}>
+                        <LabelList
+                          dataKey="absences"
+                          position="right"
+                          formatter={(val: any) => String(Number(val) || 0)}
+                          style={{ fill: '#1e293b', fontSize: 10, fontWeight: 700 }}
+                        />
                         {typeDistributionData.map((entry, idx) => (
                           <Cell key={`bar-cell-${idx}`} fill={entry.color} />
                         ))}

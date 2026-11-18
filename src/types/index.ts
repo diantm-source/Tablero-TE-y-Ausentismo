@@ -168,8 +168,10 @@ export interface GlobalFilterState {
   companyPreset: 'ALL' | 'MAIN_THREE' | 'POLAQUIMIA_ONLY' | 'CUSTOM';
   departments: string[];
   leaders: string[];
-  month: string; // 'ALL' or 'YYYY-MM'
-  isoWeek: string; // 'ALL' or 'YYYY-Wxx'
+  weeks: string[]; // e.g. ['2026-W44', '2026-W45'] or [] for all
+  months: string[]; // e.g. ['2026-03', '2026-11'] or [] for all
+  month?: string; // 'ALL' or 'YYYY-MM' (fallback)
+  isoWeek?: string; // 'ALL' or 'YYYY-Wxx' (fallback)
   specificDate: string; // '' or 'YYYY-MM-DD'
   startDate: string;
   endDate: string;

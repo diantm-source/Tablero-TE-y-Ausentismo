@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { GlobalFilterState } from '../types';
 import { getISOWeekDateRange } from '../services/businessRules';
+import { formatMonthNameDisplay } from '../services/kpiEngine';
+import { MultiSelectFilterDropdown } from './MultiSelectFilterDropdown';
 
 interface GlobalFiltersProps {
   filters: GlobalFilterState;
@@ -65,7 +67,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
         {!isCollapsed && (
           <div className="flex items-center gap-2">
             <i className="bi bi-funnel-fill text-blue-400 text-sm"></i>
-            <span className="font-semibold text-xs uppercase tracking-wider text-slate-300">
+            <span className="font-bold text-sm uppercase tracking-wider text-slate-200">
               Filtros Globales
             </span>
           </div>
@@ -241,10 +243,10 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
             </div>
           </div>
 
-          <div className="border-t border-slate-800 pt-2 space-y-3">
+          <div className="border-t border-slate-800 pt-2 space-y-3.5">
             {/* Search filter */}
             <div>
-              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+              <label className="block text-[13px] font-semibold text-slate-200 mb-1">
                 Búsqueda Rápida
               </label>
               <div className="relative">
@@ -261,7 +263,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
 
             {/* 3. Empresa Dropdown - Ocultado temporalmente por requerimiento manteniendo estado neutro */}
             <div className="hidden" aria-hidden="true">
-              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+              <label className="block text-[13px] font-semibold text-slate-200 mb-1">
                 Empresa
               </label>
               <select
@@ -310,118 +312,116 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
               </select>
             </div>
 
-            {/* Líder de Departamento / Líder de Área (Exclusivo desde Base TE) */}
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                Líder de Área
-              </label>
-              <select
-                value={filters.leaders[0] || 'ALL'}
-                onChange={(e) => {
-                  const selectedLeader = e.target.value;
-                  if (selectedLeader === 'ALL') {
-                    onChangeFilters({ leaders: ['ALL'] });
-                  } else {
-                    const allowedDepts = leaderToDeptMap?.get(selectedLeader);
-                    const curDept = filters.departments[0];
-                    const keepDept = curDept && curDept !== 'ALL' && allowedDepts?.has(curDept);
-                    onChangeFilters({
-                      leaders: [selectedLeader],
-                      departments: keepDept ? [curDept] : ['ALL'],
-                    });
+            {/* Líder de Área (Multiselección) */}
+            <MultiSelectFilterDropdown
+              label="Líder de Área"
+              placeholder="Todos los líderes"
+              options={useMemo(
+                () => availableLeaders.map((l) => ({ value: l, label: l })),
+                [availableLeaders]
+              )}
+              selectedValues={filters.leaders}
+              onChange={(newLeaders) => {
+                if (newLeaders.length === 0) {
+                  onChangeFilters({ leaders: [] });
+                } else {
+                  // Cascade to departments: retain only departments belonging to chosen leaders
+                  const allowedDepts = new Set<string>();
+                  for (const l of newLeaders) {
+                    const depts = leaderToDeptMap?.get(l);
+                    if (depts) {
+                      depts.forEach((d) => allowedDepts.add(d));
+                    }
                   }
-                }}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-blue-500 shadow-xs text-xs cursor-pointer"
-              >
-                <option value="ALL">Todos los líderes ({availableLeaders.length})</option>
-                {availableLeaders.map((l) => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-            </div>
+                  const curDepts = filters.departments.filter((d) => d !== 'ALL');
+                  const validDepts = curDepts.filter((d) => allowedDepts.has(d));
+                  onChangeFilters({
+                    leaders: newLeaders,
+                    departments: validDepts,
+                  });
+                }
+              }}
+            />
 
-            {/* Departamento (Exclusivo desde Base TE - Filtrado en cascada si hay Líder activo) */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-[11px] font-semibold text-slate-300">
-                  Departamento
-                </label>
-                {filters.leaders.length > 0 && !filters.leaders.includes('ALL') && (
-                  <span className="text-[10px] text-blue-400 font-medium">Por líder</span>
-                )}
-              </div>
-              <select
-                value={filters.departments[0] || 'ALL'}
-                onChange={(e) => onChangeFilters({ departments: [e.target.value] })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-blue-500 shadow-xs text-xs cursor-pointer"
-              >
-                <option value="ALL">
-                  {filters.leaders.length > 0 && !filters.leaders.includes('ALL')
-                    ? `Todos del líder (${availableDepartments.length})`
-                    : `Todos los departamentos (${availableDepartments.length})`}
-                </option>
-                {availableDepartments.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Departamento (Multiselección) */}
+            <MultiSelectFilterDropdown
+              label="Departamento"
+              subLabel={filters.leaders.length > 0 && !filters.leaders.includes('ALL') ? 'Por líder' : undefined}
+              placeholder="Todos los departamentos"
+              options={useMemo(
+                () => availableDepartments.map((d) => ({ value: d, label: d })),
+                [availableDepartments]
+              )}
+              selectedValues={filters.departments}
+              onChange={(newDepartments) => onChangeFilters({ departments: newDepartments })}
+            />
 
-            {/* Semana ISO 8601 */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-[11px] font-semibold text-slate-300">
-                  Semana ISO 8601
-                </label>
-                <span className="text-[10px] text-blue-400">Lun - Dom</span>
-              </div>
-              <select
-                value={filters.isoWeek}
-                onChange={(e) => onChangeFilters({ isoWeek: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-blue-500 shadow-xs text-xs cursor-pointer"
-              >
-                <option value="ALL">Todas las semanas ({availableWeeks.length})</option>
-                {availableWeeks.map((w) => {
-                  const weekInfo = getISOWeekDateRange(w);
-                  return (
-                    <option key={w} value={w}>
-                      {weekInfo.label}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
+            {/* Semana (Multiselección) */}
+            <MultiSelectFilterDropdown
+              label="Semana"
+              subLabel="Lun - Dom"
+              placeholder="Todas las semanas"
+              options={useMemo(
+                () =>
+                  availableWeeks.map((w) => {
+                    const weekInfo = getISOWeekDateRange(w);
+                    return {
+                      value: w,
+                      label: weekInfo.label,
+                    };
+                  }),
+                [availableWeeks]
+              )}
+              selectedValues={
+                filters.weeks && filters.weeks.length > 0
+                  ? filters.weeks
+                  : filters.isoWeek && filters.isoWeek !== 'ALL'
+                  ? [filters.isoWeek]
+                  : []
+              }
+              onChange={(newWeeks) =>
+                onChangeFilters({
+                  weeks: newWeeks,
+                  isoWeek: newWeeks.length === 1 ? newWeeks[0] : 'ALL',
+                })
+              }
+            />
 
-            {/* Mes */}
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                Mes
-              </label>
-              <select
-                value={filters.month}
-                onChange={(e) => onChangeFilters({ month: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-blue-500 shadow-xs text-xs cursor-pointer"
-              >
-                <option value="ALL">Todos los meses ({availableMonths.length})</option>
-                {availableMonths.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Mes (Multiselección con nombre en mayúsculas) */}
+            <MultiSelectFilterDropdown
+              label="Mes"
+              placeholder="Todos los meses"
+              options={useMemo(
+                () =>
+                  availableMonths.map((m) => ({
+                    value: m,
+                    label: formatMonthNameDisplay(m, availableMonths),
+                  })),
+                [availableMonths]
+              )}
+              selectedValues={
+                filters.months && filters.months.length > 0
+                  ? filters.months
+                  : filters.month && filters.month !== 'ALL'
+                  ? [filters.month]
+                  : []
+              }
+              onChange={(newMonths) =>
+                onChangeFilters({
+                  months: newMonths,
+                  month: newMonths.length === 1 ? newMonths[0] : 'ALL',
+                })
+              }
+            />
 
             {/* Rango Personalizado de Fechas */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-semibold text-slate-300">
+              <label className="block text-[13px] font-semibold text-slate-200">
                 Rango Personalizado
               </label>
               <div className="grid grid-cols-2 gap-1.5">
                 <div>
-                  <span className="text-[10px] text-slate-400 block">Desde</span>
+                  <span className="text-[10px] text-slate-400 block mb-0.5">Desde</span>
                   <input
                     type="date"
                     value={filters.startDate}
@@ -430,7 +430,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                   />
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block">Hasta</span>
+                  <span className="text-[10px] text-slate-400 block mb-0.5">Hasta</span>
                   <input
                     type="date"
                     value={filters.endDate}
@@ -440,36 +440,15 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                 </div>
               </div>
             </div>
-
-            {/* Estado de Tiempo Extra */}
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                Estado Tiempo Extra
-              </label>
-              <select
-                value={filters.overtimeStatus}
-                onChange={(e) =>
-                  onChangeFilters({
-                    overtimeStatus: e.target.value as GlobalFilterState['overtimeStatus'],
-                  })
-                }
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-blue-500 shadow-xs text-xs cursor-pointer"
-              >
-                <option value="ALL">Todos los estados</option>
-                <option value="APROBADO">Solamente Aprobado</option>
-                <option value="PENDIENTE">Solamente Pendiente</option>
-                <option value="RECHAZADO">Solamente Rechazado</option>
-              </select>
-            </div>
           </div>
 
-          {/* Reset Filters Button */}
+          {/* Reset Filters Button (Azul sólido/llamativo) */}
           <div className="pt-2">
             <button
               onClick={onResetFilters}
-              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 font-medium transition-colors cursor-pointer hover:text-amber-400"
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer text-xs"
             >
-              <i className="bi bi-arrow-counterclockwise text-amber-400"></i>
+              <i className="bi bi-arrow-counterclockwise text-white"></i>
               <span>Restablecer Filtros</span>
             </button>
           </div>

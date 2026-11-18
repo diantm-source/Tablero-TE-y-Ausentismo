@@ -139,10 +139,12 @@ function buildPrecalculatedCatalogs(
 }
 
 const DEFAULT_FILTERS: GlobalFilterState = {
-  companies: ['ALL'],
+  companies: [],
   companyPreset: 'ALL',
-  departments: ['ALL'],
-  leaders: ['ALL'],
+  departments: [],
+  leaders: [],
+  weeks: [],
+  months: [],
   month: 'ALL',
   isoWeek: 'ALL',
   specificDate: '',
@@ -467,8 +469,10 @@ export default function App() {
     let count = 0;
     if (filters.leaders.length > 0 && !filters.leaders.includes('ALL')) count++;
     if (filters.departments.length > 0 && !filters.departments.includes('ALL')) count++;
-    if (filters.isoWeek && filters.isoWeek !== 'ALL') count++;
-    if (filters.month && filters.month !== 'ALL') count++;
+    if (filters.weeks && filters.weeks.length > 0 && !filters.weeks.includes('ALL')) count++;
+    else if (filters.isoWeek && filters.isoWeek !== 'ALL') count++;
+    if (filters.months && filters.months.length > 0 && !filters.months.includes('ALL')) count++;
+    else if (filters.month && filters.month !== 'ALL') count++;
     if (filters.startDate || filters.endDate || filters.specificDate) count++;
     if (filters.overtimeStatus && filters.overtimeStatus !== 'ALL') count++;
     if (filters.searchTerm && filters.searchTerm.trim()) count++;

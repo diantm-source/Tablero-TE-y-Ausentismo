@@ -28,6 +28,7 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  LabelList,
 } from 'recharts';
 
 interface OvertimeAnalysisViewProps {
@@ -119,27 +120,48 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
         if (!isRecordInLeaderScope(rec, filters.leaders, leaderToDeptMap)) return false;
       }
 
-      // Semana
-      if (filters.isoWeek && filters.isoWeek !== 'ALL') {
+      // Semana (Multiselección)
+      const selectedWeeks =
+        filters.weeks && filters.weeks.length > 0
+          ? filters.weeks
+          : filters.isoWeek && filters.isoWeek !== 'ALL'
+          ? [filters.isoWeek]
+          : [];
+      if (selectedWeeks.length > 0 && !selectedWeeks.includes('ALL')) {
         const recWeekKey = `${rec.isoYear}-W${String(rec.weekNumber).padStart(2, '0')}`;
         const recShortWeek = rec.week ? rec.week.toUpperCase() : '';
-        const filterNorm = filters.isoWeek.toUpperCase();
-        if (
-          recWeekKey !== filters.isoWeek &&
-          recShortWeek !== filterNorm &&
-          !filterNorm.endsWith(String(rec.weekNumber).padStart(2, '0'))
-        ) {
-          return false;
-        }
+        const matchesWeek = selectedWeeks.some((sel) => {
+          const filterNorm = sel.toUpperCase();
+          return (
+            recWeekKey === sel ||
+            recShortWeek === filterNorm ||
+            filterNorm.endsWith(String(rec.weekNumber).padStart(2, '0'))
+          );
+        });
+        if (!matchesWeek) return false;
       }
 
-      // Mes
-      if (filters.month && filters.month !== 'ALL') {
+      // Mes (Multiselección)
+      const selectedMonths =
+        filters.months && filters.months.length > 0
+          ? filters.months
+          : filters.month && filters.month !== 'ALL'
+          ? [filters.month]
+          : [];
+      if (selectedMonths.length > 0 && !selectedMonths.includes('ALL')) {
         const recMonthKey =
           rec.fecha && /^\d{4}-\d{2}/.test(rec.fecha)
             ? rec.fecha.slice(0, 7)
             : `${rec.isoYear}-${String(rec.monthNumber).padStart(2, '0')}`;
-        if (recMonthKey !== filters.month) return false;
+        const matchesMonth = selectedMonths.some((sel) => {
+          if (recMonthKey === sel) return true;
+          const selNorm = sel.toUpperCase().trim();
+          const mNum = selNorm.includes('-') ? selNorm.split('-')[1].padStart(2, '0') : selNorm.padStart(2, '0');
+          if (rec.fecha && rec.fecha.slice(5, 7) === mNum) return true;
+          if (rec.monthNumber && String(rec.monthNumber).padStart(2, '0') === mNum) return true;
+          return false;
+        });
+        if (!matchesMonth) return false;
       }
 
       // Búsqueda rápida
@@ -588,14 +610,6 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
             <i className="bi bi-file-earmark-spreadsheet-fill text-emerald-600"></i>
             <span>Google Sheets (Nube) + 'Registro_Prolongacion.xlsx'</span>
           </div>
-
-          <button
-            onClick={handleExportPending}
-            className="px-3.5 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
-          >
-            <i className="bi bi-file-earmark-excel-fill text-sm"></i>
-            <span>Exportar Pendientes ({pendingRecords.length})</span>
-          </button>
         </div>
       </div>
 
@@ -978,6 +992,12 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                           labelFormatter={(l) => `Departamento: ${l}`}
                         />
                         <Bar dataKey="hours" name="Horas" radius={[0, 4, 4, 0]}>
+                          <LabelList
+                            dataKey="hours"
+                            position="right"
+                            formatter={(val: any) => `${Number(val) % 1 === 0 ? Number(val) : Number(val).toFixed(1)} hrs`}
+                            style={{ fill: '#1e293b', fontSize: 10, fontWeight: 700 }}
+                          />
                           {deptOvertimeData.data.slice(0, 8).map((entry, idx) => (
                             <Cell key={`dept-b-${idx}`} fill={entry.color} />
                           ))}
@@ -1078,7 +1098,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                 {shiftDistributionData.grandTotal > 0 ? (
                   shiftChartType === 'bar' ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={shiftDistributionData.data} margin={{ top: 15, right: 15, left: 0, bottom: 10 }}>
+                      <BarChart data={shiftDistributionData.data} margin={{ top: 25, right: 15, left: 0, bottom: 10 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis dataKey="shortName" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} unit=" h" />
@@ -1090,6 +1110,12 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                           labelFormatter={(l) => `Turno: ${l}`}
                         />
                         <Bar dataKey="hours" name="Horas" radius={[4, 4, 0, 0]}>
+                          <LabelList
+                            dataKey="hours"
+                            position="top"
+                            formatter={(val: any) => `${Number(val) % 1 === 0 ? Number(val) : Number(val).toFixed(1)} hrs`}
+                            style={{ fill: '#1e293b', fontSize: 10, fontWeight: 700 }}
+                          />
                           {shiftDistributionData.data.map((entry, idx) => (
                             <Cell key={`shift-b-${idx}`} fill={entry.color} />
                           ))}
@@ -1184,7 +1210,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
               {dailyDistributionData.grandTotal > 0 ? (
                 dayChartType === 'bar' ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dailyDistributionData.data} margin={{ top: 15, right: 15, left: 0, bottom: 10 }}>
+                    <BarChart data={dailyDistributionData.data} margin={{ top: 25, right: 15, left: 0, bottom: 10 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis
                         dataKey="dayName"
@@ -1206,6 +1232,12 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                         }}
                       />
                       <Bar dataKey="hours" name="Horas" radius={[4, 4, 0, 0]}>
+                        <LabelList
+                          dataKey="hours"
+                          position="top"
+                          formatter={(val: any) => `${Number(val) % 1 === 0 ? Number(val) : Number(val).toFixed(1)} hrs`}
+                          style={{ fill: '#1e293b', fontSize: 10, fontWeight: 700 }}
+                        />
                         {dailyDistributionData.data.map((entry, idx) => (
                           <Cell key={`day-b-${idx}`} fill={entry.color} />
                         ))}
@@ -1428,7 +1460,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                 <BarChart
                   data={kpis.departmentsMetrics.slice(0, 6)}
                   layout="vertical"
-                  margin={{ left: 20 }}
+                  margin={{ left: 20, right: 35 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                   <XAxis type="number" tick={{ fontSize: 11 }} />
@@ -1437,7 +1469,14 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                     labelFormatter={(label) => `Departamento: ${label}`}
                     formatter={(val: any, name: any) => [`${val} hrs`, name]}
                   />
-                  <Bar dataKey="approvedHours" name="Horas Aprobadas" fill="#2563eb" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="approvedHours" name="Horas Aprobadas" fill="#2563eb" radius={[0, 4, 4, 0]}>
+                    <LabelList
+                      dataKey="approvedHours"
+                      position="right"
+                      formatter={(val: any) => `${Number(val) % 1 === 0 ? Number(val) : Number(val).toFixed(1)} hrs`}
+                      style={{ fill: '#1e293b', fontSize: 10, fontWeight: 700 }}
+                    />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (

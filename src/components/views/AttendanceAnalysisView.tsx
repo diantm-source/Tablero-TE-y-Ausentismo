@@ -17,6 +17,7 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  LabelList,
 } from 'recharts';
 
 interface AttendanceAnalysisViewProps {
@@ -31,10 +32,12 @@ interface AttendanceAnalysisViewProps {
 }
 
 const FALLBACK_FILTERS: GlobalFilterState = {
-  companies: ['ALL'],
+  companies: [],
   companyPreset: 'ALL',
-  departments: ['ALL'],
-  leaders: ['ALL'],
+  departments: [],
+  leaders: [],
+  weeks: [],
+  months: [],
   month: 'ALL',
   isoWeek: 'ALL',
   specificDate: '',
@@ -413,7 +416,7 @@ export const AttendanceAnalysisView: React.FC<AttendanceAnalysisViewProps> = ({
         <div className="h-64">
           {deptRanking.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={deptRanking}>
+              <BarChart data={deptRanking} margin={{ top: 25, right: 10, left: 0, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="department" tick={{ fontSize: 10 }} />
                 <YAxis unit="%" tick={{ fontSize: 11 }} />
@@ -422,7 +425,14 @@ export const AttendanceAnalysisView: React.FC<AttendanceAnalysisViewProps> = ({
                   formatter={(val: any) => [`${val}%`, 'Tasa de Ausentismo']}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="absenceRate" name="Tasa de Ausentismo (%)" fill="#e11d48" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="absenceRate" name="Tasa de Ausentismo (%)" fill="#e11d48" radius={[4, 4, 0, 0]}>
+                  <LabelList
+                    dataKey="absenceRate"
+                    position="top"
+                    formatter={(val: any) => `${val}%`}
+                    style={{ fill: '#1e293b', fontSize: 10, fontWeight: 700 }}
+                  />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (

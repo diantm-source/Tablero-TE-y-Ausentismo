@@ -372,13 +372,39 @@ export function applyFilters(
     if (filters.collaboratorType === 'SINDICALIZADO' && !isOvertimeSyndicated(rec)) return false;
     if (filters.collaboratorType === 'NO_SINDICALIZADO' && isOvertimeSyndicated(rec)) return false;
 
-    if (filters.isoWeek && filters.isoWeek !== 'ALL') {
+    // Filtro de Semana (Multiselección)
+    const selectedWeeks =
+      filters.weeks && filters.weeks.length > 0
+        ? filters.weeks
+        : filters.isoWeek && filters.isoWeek !== 'ALL'
+        ? [filters.isoWeek]
+        : [];
+    if (selectedWeeks.length > 0 && !selectedWeeks.includes('ALL')) {
       const recWeekKey = `${rec.isoYear}-W${String(rec.isoWeek).padStart(2, '0')}`;
-      if (recWeekKey !== filters.isoWeek) return false;
+      const matchesWeek = selectedWeeks.some(
+        (w) => w === recWeekKey || (rec.isoWeek && w.endsWith(String(rec.isoWeek).padStart(2, '0')))
+      );
+      if (!matchesWeek) return false;
     }
 
-    if (filters.month && filters.month !== 'ALL') {
-      if (!rec.dateOnly.startsWith(filters.month)) return false;
+    // Filtro de Mes (Multiselección)
+    const selectedMonths =
+      filters.months && filters.months.length > 0
+        ? filters.months
+        : filters.month && filters.month !== 'ALL'
+        ? [filters.month]
+        : [];
+    if (selectedMonths.length > 0 && !selectedMonths.includes('ALL')) {
+      const matchesMonth = selectedMonths.some((m) => {
+        if (m === 'ALL') return true;
+        if (rec.dateOnly && rec.dateOnly.startsWith(m)) return true;
+        const mNorm = m.toUpperCase().trim();
+        const mNum =
+          MONTH_NAMES_TO_NUM[mNorm] || (mNorm.includes('-') ? mNorm.split('-')[1].padStart(2, '0') : mNorm.padStart(2, '0'));
+        if (rec.dateOnly && /^\d{4}-\d{2}/.test(rec.dateOnly) && rec.dateOnly.slice(5, 7) === mNum) return true;
+        return false;
+      });
+      if (!matchesMonth) return false;
     }
 
     if (filters.specificDate) {
@@ -422,13 +448,37 @@ export function applyFilters(
     if (filters.collaboratorType === 'SINDICALIZADO' && !rec.isSyndicated) return false;
     if (filters.collaboratorType === 'NO_SINDICALIZADO' && rec.isSyndicated) return false;
 
-    if (filters.isoWeek && filters.isoWeek !== 'ALL') {
+    // Filtro de Semana (Multiselección)
+    const selectedWeeks =
+      filters.weeks && filters.weeks.length > 0
+        ? filters.weeks
+        : filters.isoWeek && filters.isoWeek !== 'ALL'
+        ? [filters.isoWeek]
+        : [];
+    if (selectedWeeks.length > 0 && !selectedWeeks.includes('ALL')) {
       const recWeekKey = `${rec.isoYear}-W${String(rec.isoWeek).padStart(2, '0')}`;
-      if (recWeekKey !== filters.isoWeek) return false;
+      const matchesWeek = selectedWeeks.some((w) => w === recWeekKey);
+      if (!matchesWeek) return false;
     }
 
-    if (filters.month && filters.month !== 'ALL') {
-      if (!rec.date.startsWith(filters.month)) return false;
+    // Filtro de Mes (Multiselección)
+    const selectedMonths =
+      filters.months && filters.months.length > 0
+        ? filters.months
+        : filters.month && filters.month !== 'ALL'
+        ? [filters.month]
+        : [];
+    if (selectedMonths.length > 0 && !selectedMonths.includes('ALL')) {
+      const matchesMonth = selectedMonths.some((m) => {
+        if (m === 'ALL') return true;
+        if (rec.date && rec.date.startsWith(m)) return true;
+        const mNorm = m.toUpperCase().trim();
+        const mNum =
+          MONTH_NAMES_TO_NUM[mNorm] || (mNorm.includes('-') ? mNorm.split('-')[1].padStart(2, '0') : mNorm.padStart(2, '0'));
+        if (rec.date && /^\d{4}-\d{2}/.test(rec.date) && rec.date.slice(5, 7) === mNum) return true;
+        return false;
+      });
+      if (!matchesMonth) return false;
     }
 
     if (filters.specificDate) {
@@ -975,6 +1025,66 @@ export interface ExecutiveCalculationParams {
   leaderToDeptMap?: Map<string, Set<string>>;
 }
 
+export const MONTH_NAMES_TO_NUM: Record<string, string> = {
+  ENERO: '01',
+  FEBRERO: '02',
+  MARZO: '03',
+  ABRIL: '04',
+  MAYO: '05',
+  JUNIO: '06',
+  JULIO: '07',
+  AGOSTO: '08',
+  SEPTIEMBRE: '09',
+  OCTUBRE: '10',
+  NOVIEMBRE: '11',
+  DICIEMBRE: '12',
+};
+
+export const NUM_TO_MONTH_NAME: Record<string, string> = {
+  '01': 'ENERO',
+  '02': 'FEBRERO',
+  '03': 'MARZO',
+  '04': 'ABRIL',
+  '05': 'MAYO',
+  '06': 'JUNIO',
+  '07': 'JULIO',
+  '08': 'AGOSTO',
+  '09': 'SEPTIEMBRE',
+  '10': 'OCTUBRE',
+  '11': 'NOVIEMBRE',
+  '12': 'DICIEMBRE',
+};
+
+/**
+ * Normaliza y formatea un mes para visualización en mayúsculas (ej. "NOVIEMBRE" o "NOVIEMBRE 2026")
+ */
+export function formatMonthNameDisplay(monthValue: string, allMonths: string[] = []): string {
+  if (!monthValue || monthValue === 'ALL') return 'Todos los meses';
+  const val = monthValue.trim();
+
+  // Comprobar si hay múltiples años para incluir el año en el formato
+  const years = new Set<string>();
+  for (const m of allMonths) {
+    if (m && m.includes('-')) {
+      years.add(m.split('-')[0]);
+    }
+  }
+  const hasMultipleYears = years.size > 1;
+
+  if (val.includes('-')) {
+    const [year, mNum] = val.split('-');
+    const padded = mNum.padStart(2, '0');
+    const name = NUM_TO_MONTH_NAME[padded] || val;
+    return hasMultipleYears ? `${name} ${year}` : name;
+  }
+
+  const upper = val.toUpperCase();
+  if (MONTH_NAMES_TO_NUM[upper]) return upper;
+  const numPadded = val.padStart(2, '0');
+  if (NUM_TO_MONTH_NAME[numPadded]) return NUM_TO_MONTH_NAME[numPadded];
+  return upper;
+}
+
 /**
  * Filtro exclusivo de temporalidad (Semana y Mes) para las dos gráficas analíticas.
  * Ignora Departamento, Líder y Búsqueda rápida.
@@ -994,11 +1104,19 @@ export function passesPeriodFilterOnly(
   },
   filters: GlobalFilterState
 ): boolean {
-  // Filtro de Semana ISO 8601
-  if (filters.isoWeek && filters.isoWeek !== 'ALL') {
+  // Filtro de Semana (Multiselección con fallback a isoWeek)
+  const selectedWeeks =
+    filters.weeks && filters.weeks.length > 0
+      ? filters.weeks
+      : filters.isoWeek && filters.isoWeek !== 'ALL'
+      ? [filters.isoWeek]
+      : [];
+
+  if (selectedWeeks.length > 0 && !selectedWeeks.includes('ALL')) {
     let recIsoKey = '';
-    if (item.isoYear && (item.isoWeek || item.weekNumber)) {
-      recIsoKey = `${item.isoYear}-W${String(item.isoWeek || item.weekNumber).padStart(2, '0')}`;
+    const wNum = item.isoWeek || item.weekNumber;
+    if (item.isoYear && wNum) {
+      recIsoKey = `${item.isoYear}-W${String(wNum).padStart(2, '0')}`;
     } else if (item.week) {
       const match = item.week.match(/\d+/);
       if (match) {
@@ -1006,21 +1124,53 @@ export function passesPeriodFilterOnly(
         recIsoKey = `${year}-W${match[0].padStart(2, '0')}`;
       }
     }
-    if (recIsoKey && recIsoKey !== filters.isoWeek) return false;
+    const recShort = item.week ? item.week.toUpperCase() : '';
+
+    const matchesWeek = selectedWeeks.some((sel) => {
+      if (sel === 'ALL') return true;
+      const selNorm = sel.toUpperCase();
+      if (recIsoKey && recIsoKey.toUpperCase() === selNorm) return true;
+      if (recShort && recShort === selNorm) return true;
+      if (wNum && selNorm.endsWith(String(wNum).padStart(2, '0'))) return true;
+      return false;
+    });
+
+    if (!matchesWeek) return false;
   }
 
-  // Filtro de Mes (YYYY-MM)
-  if (filters.month && filters.month !== 'ALL') {
+  // Filtro de Mes (Multiselección con fallback a month)
+  const selectedMonths =
+    filters.months && filters.months.length > 0
+      ? filters.months
+      : filters.month && filters.month !== 'ALL'
+      ? [filters.month]
+      : [];
+
+  if (selectedMonths.length > 0 && !selectedMonths.includes('ALL')) {
     const dStr = item.fecha || item.startDate || item.date || item.dateOnly || '';
     const endStr = item.endDate || dStr;
-    const matchesByDate = (dStr && dStr.startsWith(filters.month)) || (endStr && endStr.startsWith(filters.month));
+    const mNumStr = item.monthNumber ? String(item.monthNumber).padStart(2, '0') : '';
+    const mYearKey = item.isoYear && item.monthNumber ? `${item.isoYear}-${mNumStr}` : '';
 
-    if (dStr || endStr) {
-      if (!matchesByDate) return false;
-    } else if (item.isoYear && item.monthNumber) {
-      const mKey = `${item.isoYear}-${String(item.monthNumber).padStart(2, '0')}`;
-      if (mKey !== filters.month) return false;
-    }
+    const matchesMonth = selectedMonths.some((sel) => {
+      if (sel === 'ALL') return true;
+      const selNorm = sel.toUpperCase().trim();
+      if (dStr && dStr.startsWith(sel)) return true;
+      if (endStr && endStr.startsWith(sel)) return true;
+      if (mYearKey && mYearKey === sel) return true;
+
+      const monthNumFromSel =
+        MONTH_NAMES_TO_NUM[selNorm] ||
+        (selNorm.includes('-') ? selNorm.split('-')[1].padStart(2, '0') : selNorm.padStart(2, '0'));
+
+      if (dStr && /^\d{4}-\d{2}/.test(dStr) && dStr.slice(5, 7) === monthNumFromSel) return true;
+      if (endStr && /^\d{4}-\d{2}/.test(endStr) && endStr.slice(5, 7) === monthNumFromSel) return true;
+      if (mNumStr && mNumStr === monthNumFromSel) return true;
+
+      return false;
+    });
+
+    if (!matchesMonth) return false;
   }
 
   return true;

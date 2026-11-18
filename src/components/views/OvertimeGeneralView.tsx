@@ -207,29 +207,48 @@ export const OvertimeGeneralView: React.FC<OvertimeGeneralViewProps> = ({
         }
       }
 
-      // ISO Week filter (soporta formato '2026-W04', 'S04', 'W04')
-      if (filters.isoWeek && filters.isoWeek !== 'ALL') {
+      // ISO Week filter (soporta multiselección y formato '2026-W04', 'S04', 'W04')
+      const selectedWeeks =
+        filters.weeks && filters.weeks.length > 0
+          ? filters.weeks
+          : filters.isoWeek && filters.isoWeek !== 'ALL'
+          ? [filters.isoWeek]
+          : [];
+      if (selectedWeeks.length > 0 && !selectedWeeks.includes('ALL')) {
         const recWeekKey = `${rec.isoYear}-W${String(rec.weekNumber).padStart(2, '0')}`;
         const recShortWeek = rec.week ? rec.week.toUpperCase() : '';
-        const filterNorm = filters.isoWeek.toUpperCase();
-        if (
-          recWeekKey !== filters.isoWeek &&
-          recShortWeek !== filterNorm &&
-          !filterNorm.endsWith(String(rec.weekNumber).padStart(2, '0'))
-        ) {
-          return false;
-        }
+        const matchesWeek = selectedWeeks.some((sel) => {
+          const filterNorm = sel.toUpperCase();
+          return (
+            recWeekKey === sel ||
+            recShortWeek === filterNorm ||
+            filterNorm.endsWith(String(rec.weekNumber).padStart(2, '0'))
+          );
+        });
+        if (!matchesWeek) return false;
       }
 
-      // Month filter (YYYY-MM)
-      if (filters.month && filters.month !== 'ALL') {
+      // Month filter (soporta multiselección y nombre de mes)
+      const selectedMonths =
+        filters.months && filters.months.length > 0
+          ? filters.months
+          : filters.month && filters.month !== 'ALL'
+          ? [filters.month]
+          : [];
+      if (selectedMonths.length > 0 && !selectedMonths.includes('ALL')) {
         const recMonthKey =
           rec.fecha && /^\d{4}-\d{2}/.test(rec.fecha)
             ? rec.fecha.slice(0, 7)
             : `${rec.isoYear}-${String(rec.monthNumber).padStart(2, '0')}`;
-        if (recMonthKey !== filters.month) {
+        const matchesMonth = selectedMonths.some((sel) => {
+          if (recMonthKey === sel) return true;
+          const selNorm = sel.toUpperCase().trim();
+          const mNum = selNorm.includes('-') ? selNorm.split('-')[1].padStart(2, '0') : selNorm.padStart(2, '0');
+          if (rec.fecha && rec.fecha.slice(5, 7) === mNum) return true;
+          if (rec.monthNumber && String(rec.monthNumber).padStart(2, '0') === mNum) return true;
           return false;
-        }
+        });
+        if (!matchesMonth) return false;
       }
 
       // Specific date and custom date range
