@@ -616,6 +616,13 @@ export default function App() {
                 kpis={kpis}
                 thresholds={thresholds}
                 onNavigate={setCurrentSection}
+                annualOvertime={annualOvertimeRecords}
+                matrixRecords={weeklyMatrixRecords}
+                absenceRecords={absenceRecords}
+                allOvertime={overtimeRecords}
+                allAttendance={attendanceRecords}
+                filters={filters}
+                leaderToDeptMap={baseTeCatalog.leaderToDepartments}
               />
             )}
 

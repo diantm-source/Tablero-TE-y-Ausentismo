@@ -1,8 +1,11 @@
 import {
+  AbsenceRecord,
+  AnnualOvertimeRecord,
   AttendanceRecord,
   GlobalFilterState,
   OvertimeRecord,
   ThresholdConfig,
+  WeeklyMatrixRecord,
 } from '../types';
 import { determineSyndicatedStatus, getISOWeekDateRange } from './businessRules';
 import {
@@ -805,4 +808,709 @@ export function computeKPIs(
     overtimeSemaphore,
     dateRangeCovered: minDate && maxDate ? { start: minDate, end: maxDate } : null,
   };
+}
+
+// ============================================================================
+// SELECTORES Y MOTORES DE CÁLCULO PARA EL RESUMEN EJECUTIVO (5 KPIS + 2 GRÁFICAS)
+// ============================================================================
+
+export interface ExecutiveKPIsData {
+  totalOvertimeHours: {
+    total: number;
+    normales: number;
+    prolongacion: number;
+    globalTotal: number;
+    percentageOfGlobal: number;
+  };
+  unjustifiedAbsences: {
+    count: number;
+    equivalentHours: number;
+    globalCount: number;
+    percentageOfGlobal: number;
+  };
+  justifiedAbsences: {
+    count: number;
+    equivalentHours: number;
+    globalCount: number;
+    percentageOfGlobal: number;
+    breakdown: { type: string; count: number }[];
+    breakdownSummary: string;
+  };
+  topOvertimeDepartment: {
+    department: string;
+    hours: number;
+    leader: string;
+  } | null;
+  topAbsenceDepartment: {
+    department: string;
+    rate: number;
+    hours: number;
+    absencesCount: number;
+  } | null;
+}
+
+export interface DepartmentOvertimeChartItem {
+  department: string;
+  hours: number;
+  percentage: number;
+  dates: string[];
+  datesFormatted: string;
+  shifts: {
+    '1er Turno': number;
+    '2do Turno': number;
+    '3er Turno': number;
+  };
+  shiftsList: string[];
+}
+
+export interface DepartmentAbsenceChartItem {
+  department: string;
+  absences: number;
+  percentage: number;
+  dates: string[];
+  datesFormatted: string;
+  shifts: {
+    '1er Turno': number;
+    '2do Turno': number;
+    '3er Turno': number;
+  };
+  shiftsList: string[];
+}
+
+export interface ExecutiveSummaryCalculations {
+  kpis: ExecutiveKPIsData;
+  overtimeChart: DepartmentOvertimeChartItem[];
+  absenceChart: DepartmentAbsenceChartItem[];
+}
+
+/**
+ * Normaliza y verifica si un tipo de ausencia corresponde a Falta Injustificada.
+ */
+export function isUnjustifiedAbsence(absenceType?: string): boolean {
+  if (!absenceType) return false;
+  const norm = absenceType.trim().toLowerCase();
+  return norm === 'falta injustificada' || norm === 'faltas injustificadas';
+}
+
+/**
+ * Normaliza una denominación de turno a '1er Turno' | '2do Turno' | '3er Turno'.
+ */
+export function normalizeShiftName(rawTurno?: string, schedule?: string): '1er Turno' | '2do Turno' | '3er Turno' {
+  const text = `${rawTurno || ''} ${schedule || ''}`.toLowerCase();
+  if (text.includes('3') || text.includes('tercer') || text.includes('nocturn')) {
+    return '3er Turno';
+  }
+  if (text.includes('2') || text.includes('segundo') || text.includes('vespertin')) {
+    return '2do Turno';
+  }
+  return '1er Turno';
+}
+
+/**
+ * Formatea una lista de fechas ordenadas para presentación amigable en tooltips y tablas.
+ */
+export function formatDatesSummary(dates: string[]): string {
+  if (!dates || dates.length === 0) return 'Sin fechas registradas';
+  const uniqueSorted = Array.from(new Set(dates)).filter(Boolean).sort();
+  if (uniqueSorted.length === 0) return 'Sin fechas registradas';
+
+  if (uniqueSorted.length <= 3) {
+    return uniqueSorted
+      .map((d) => {
+        const parts = d.split('-');
+        return parts.length === 3 ? `${parts[2]}/${parts[1]}` : d;
+      })
+      .join(', ');
+  }
+
+  const first = uniqueSorted[0];
+  const last = uniqueSorted[uniqueSorted.length - 1];
+  const fParts = first.split('-');
+  const lParts = last.split('-');
+  const fStr = fParts.length === 3 ? `${fParts[2]}/${fParts[1]}` : first;
+  const lStr = lParts.length === 3 ? `${lParts[2]}/${lParts[1]}` : last;
+
+  return `${fStr} al ${lStr} (${uniqueSorted.length} fechas)`;
+}
+
+export interface ExecutiveCalculationParams {
+  annualOvertime?: AnnualOvertimeRecord[];
+  matrixRecords?: WeeklyMatrixRecord[];
+  absenceRecords?: AbsenceRecord[];
+  allOvertime?: OvertimeRecord[];
+  allAttendance?: AttendanceRecord[];
+  filters: GlobalFilterState;
+  leaderToDeptMap?: Map<string, Set<string>>;
+}
+
+/**
+ * Filtro exclusivo de temporalidad (Semana y Mes) para las dos gráficas analíticas.
+ * Ignora Departamento, Líder y Búsqueda rápida.
+ */
+export function passesPeriodFilterOnly(
+  item: {
+    fecha?: string;
+    startDate?: string;
+    endDate?: string;
+    dateOnly?: string;
+    date?: string;
+    isoYear?: number;
+    isoWeek?: number;
+    weekNumber?: number;
+    week?: string;
+    monthNumber?: number;
+  },
+  filters: GlobalFilterState
+): boolean {
+  // Filtro de Semana ISO 8601
+  if (filters.isoWeek && filters.isoWeek !== 'ALL') {
+    let recIsoKey = '';
+    if (item.isoYear && (item.isoWeek || item.weekNumber)) {
+      recIsoKey = `${item.isoYear}-W${String(item.isoWeek || item.weekNumber).padStart(2, '0')}`;
+    } else if (item.week) {
+      const match = item.week.match(/\d+/);
+      if (match) {
+        const year = item.isoYear || 2026;
+        recIsoKey = `${year}-W${match[0].padStart(2, '0')}`;
+      }
+    }
+    if (recIsoKey && recIsoKey !== filters.isoWeek) return false;
+  }
+
+  // Filtro de Mes (YYYY-MM)
+  if (filters.month && filters.month !== 'ALL') {
+    const dStr = item.fecha || item.startDate || item.date || item.dateOnly || '';
+    const endStr = item.endDate || dStr;
+    const matchesByDate = (dStr && dStr.startsWith(filters.month)) || (endStr && endStr.startsWith(filters.month));
+
+    if (dStr || endStr) {
+      if (!matchesByDate) return false;
+    } else if (item.isoYear && item.monthNumber) {
+      const mKey = `${item.isoYear}-${String(item.monthNumber).padStart(2, '0')}`;
+      if (mKey !== filters.month) return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Filtro completo para los 5 KPIs (Semana, Mes, Departamento, Líder de Área y Búsqueda rápida).
+ */
+export function passesFullExecutiveFilter(
+  item: {
+    department?: string;
+    Departamento?: string;
+    leader?: string;
+    liderArea?: string;
+    'Líder de área'?: string;
+    employeeName?: string;
+    Nombre?: string;
+    colaborador?: string;
+    employeeId?: string;
+    ID?: string;
+    fecha?: string;
+    startDate?: string;
+    endDate?: string;
+    dateOnly?: string;
+    date?: string;
+    isoYear?: number;
+    isoWeek?: number;
+    weekNumber?: number;
+    week?: string;
+    monthNumber?: number;
+    reason?: string;
+    absenceType?: string;
+    'Tipo de ausentismo'?: string;
+  },
+  filters: GlobalFilterState,
+  leaderToDeptMap?: Map<string, Set<string>>
+): boolean {
+  // 1. Validar Semana y Mes primero
+  if (!passesPeriodFilterOnly(item, filters)) return false;
+
+  // 2. Filtro de Departamento
+  const rawDept = item.department || item.Departamento || '';
+  if (filters.departments.length > 0 && !filters.departments.includes('ALL')) {
+    const cDept = canonicalizeDepartment(rawDept);
+    const recDeptNorm = normalizeDeptKey(cDept);
+    const matchesDept = filters.departments.some(
+      (d) => d === cDept || (recDeptNorm && normalizeDeptKey(d) === recDeptNorm)
+    );
+    if (!matchesDept) return false;
+  }
+
+  // 3. Filtro de Líder de Área (usando ámbito relacional de Base TE)
+  if (filters.leaders.length > 0 && !filters.leaders.includes('ALL')) {
+    const leaderVal = item.leader || item.liderArea || item['Líder de área'];
+    if (!isRecordInLeaderScope({ department: rawDept, leader: leaderVal }, filters.leaders, leaderToDeptMap)) {
+      return false;
+    }
+  }
+
+  // 4. Búsqueda rápida
+  if (filters.searchTerm && filters.searchTerm.trim()) {
+    const term = filters.searchTerm.toLowerCase();
+    const name = String(item.employeeName || item.Nombre || item.colaborador || '').toLowerCase();
+    const id = String(item.employeeId || item.ID || '').toLowerCase();
+    const dept = String(rawDept).toLowerCase();
+    const extra = String(item.reason || item.absenceType || item['Tipo de ausentismo'] || '').toLowerCase();
+
+    if (!name.includes(term) && !id.includes(term) && !dept.includes(term) && !extra.includes(term)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Calcula los 5 Indicadores Clave (KPI Cards) del Resumen Ejecutivo:
+ * 1. Horas Extra Totales (normales + prolongación vs global)
+ * 2. Ausencias sin Justificación (conteo de "Falta injustificada", hrs equivalentes vs global)
+ * 3. Ausencias con Justificación (conteo justificadas, desglose principales vs global)
+ * 4. Mayor Volumen de Tiempo Extra (departamento líder en TE, horas y su líder asignado)
+ * 5. Mayor Tasa de Ausentismo (departamento con mayor tasa/incidencia y horas de ausencia)
+ */
+export function calculateExecutiveKPIs(params: ExecutiveCalculationParams): ExecutiveKPIsData {
+  const {
+    annualOvertime = [],
+    matrixRecords = [],
+    absenceRecords = [],
+    allOvertime = [],
+    allAttendance = [],
+    filters,
+    leaderToDeptMap,
+  } = params;
+
+  // 1. Determinar fuente de Tiempo Extra
+  const rawOtSource: any[] =
+    matrixRecords.length > 0
+      ? matrixRecords
+      : annualOvertime.length > 0
+      ? annualOvertime
+      : allOvertime;
+
+  // 2. Determinar fuente de Ausentismo
+  const rawAbsSource: any[] =
+    absenceRecords.length > 0
+      ? absenceRecords
+      : allAttendance.filter(
+          (a) => a.absenceStatus === 'AUSENCIA_CONFIRMADA' || a.absenceStatus === 'AUSENCIA_PROBABLE'
+        );
+
+  // Totales Globales (sin filtros)
+  let globalTotalOtHours = 0;
+  for (const r of rawOtSource) {
+    const hTot =
+      r.horasTotales !== undefined
+        ? r.horasTotales
+        : (r.horasNormales || 0) + (r.horasProlongacion || 0) ||
+          r.hours ||
+          r.approvedHours ||
+          r.requestedHours ||
+          0;
+    globalTotalOtHours += hTot;
+  }
+
+  let globalUnjustifiedCount = 0;
+  let globalJustifiedCount = 0;
+  for (const r of rawAbsSource) {
+    const qty = Number(r.absences) || 1;
+    const type = r.absenceType || r['Tipo de ausentismo'] || (r.hasException ? 'Justificado' : 'Falta injustificada');
+    if (isUnjustifiedAbsence(type)) {
+      globalUnjustifiedCount += qty;
+    } else {
+      globalJustifiedCount += qty;
+    }
+  }
+
+  // Filtrar registros para la selección actual (Semana, Mes, Departamento, Líder, etc.)
+  const filteredOt = rawOtSource.filter((r) => passesFullExecutiveFilter(r, filters, leaderToDeptMap));
+  const filteredAbs = rawAbsSource.filter((r) => passesFullExecutiveFilter(r, filters, leaderToDeptMap));
+
+  // KPI 1: Horas Extra Totales
+  let selNormales = 0;
+  let selProlongacion = 0;
+  let selTotalOt = 0;
+
+  // Mapeo por departamento para KPI 4
+  const deptOtMap = new Map<string, { totalHours: number; leader: string }>();
+
+  for (const r of filteredOt) {
+    const hNorm = r.horasNormales !== undefined ? r.horasNormales : (r.hours || r.approvedHours || r.requestedHours || 0);
+    const hProl = r.horasProlongacion !== undefined ? r.horasProlongacion : 0;
+    const hTot = r.horasTotales !== undefined ? r.horasTotales : hNorm + hProl;
+
+    selNormales += hNorm;
+    selProlongacion += hProl;
+    selTotalOt += hTot;
+
+    const dept = canonicalizeDepartment(r.department || r.Departamento || 'Sin Departamento');
+    const existing = deptOtMap.get(dept) || {
+      totalHours: 0,
+      leader: r.leader || r.liderArea || r['Líder de área'] || 'Sin Asignar',
+    };
+    existing.totalHours += hTot;
+    if (r.leader && r.leader !== 'Sin Líder Asignado' && r.leader !== 'Sin Asignar') {
+      existing.leader = r.leader;
+    }
+    deptOtMap.set(dept, existing);
+  }
+
+  const pctOtOfGlobal = globalTotalOtHours > 0 ? Math.round((selTotalOt / globalTotalOtHours) * 1000) / 10 : 0;
+
+  // KPI 2 y KPI 3: Ausencias sin y con Justificación
+  let selUnjustifiedCount = 0;
+  let selJustifiedCount = 0;
+  const justifiedTypeCounts = new Map<string, number>();
+
+  // Mapeo por departamento para KPI 5
+  const deptAbsMap = new Map<string, { absences: number; eligibleShifts: number }>();
+
+  for (const r of filteredAbs) {
+    const qty = Number(r.absences) || 1;
+    const type = r.absenceType || r['Tipo de ausentismo'] || (r.hasException ? 'Justificado' : 'Falta injustificada');
+    const dept = canonicalizeDepartment(r.department || r.Departamento || 'Sin Departamento');
+
+    if (isUnjustifiedAbsence(type)) {
+      selUnjustifiedCount += qty;
+    } else {
+      selJustifiedCount += qty;
+      const cleanType = String(type).trim() || 'Otras Justificadas';
+      justifiedTypeCounts.set(cleanType, (justifiedTypeCounts.get(cleanType) || 0) + qty);
+    }
+
+    const cur = deptAbsMap.get(dept) || { absences: 0, eligibleShifts: 0 };
+    cur.absences += qty;
+    deptAbsMap.set(dept, cur);
+  }
+
+  // Si allAttendance está presente, cruzar jornadas elegibles para calcular tasa exacta de ausentismo
+  if (allAttendance.length > 0) {
+    const filteredAtt = allAttendance.filter((a) => passesFullExecutiveFilter(a, filters, leaderToDeptMap));
+    for (const a of filteredAtt) {
+      if (a.isScheduleEligible) {
+        const dept = canonicalizeDepartment(a.department || 'Sin Departamento');
+        const cur = deptAbsMap.get(dept) || { absences: 0, eligibleShifts: 0 };
+        cur.eligibleShifts++;
+        deptAbsMap.set(dept, cur);
+      }
+    }
+  }
+
+  const pctUnjOfGlobal = globalUnjustifiedCount > 0 ? Math.round((selUnjustifiedCount / globalUnjustifiedCount) * 1000) / 10 : 0;
+  const pctJustOfGlobal = globalJustifiedCount > 0 ? Math.round((selJustifiedCount / globalJustifiedCount) * 1000) / 10 : 0;
+
+  // Desglose de tipos justificados ordenados
+  const justifiedBreakdown = Array.from(justifiedTypeCounts.entries())
+    .map(([type, count]) => ({ type, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const breakdownSummary =
+    justifiedBreakdown.length > 0
+      ? justifiedBreakdown.slice(0, 3).map((item) => `${item.type} (${item.count})`).join(', ')
+      : 'Sin ausencias justificadas';
+
+  // KPI 4: Mayor Volumen de Tiempo Extra
+  let topOtDept: { department: string; hours: number; leader: string } | null = null;
+  const deptOtArray = Array.from(deptOtMap.entries())
+    .map(([dept, data]) => ({
+      department: dept,
+      hours: Math.round(data.totalHours * 10) / 10,
+      leader: data.leader,
+    }))
+    .sort((a, b) => b.hours - a.hours);
+
+  if (deptOtArray.length > 0 && deptOtArray[0].hours > 0) {
+    topOtDept = deptOtArray[0];
+  }
+
+  // KPI 5: Mayor Tasa de Ausentismo
+  let topAbsDept: { department: string; rate: number; hours: number; absencesCount: number } | null = null;
+  const totalSelAbsences = selUnjustifiedCount + selJustifiedCount;
+
+  const deptAbsArray = Array.from(deptAbsMap.entries())
+    .map(([dept, data]) => {
+      let rate = 0;
+      if (data.eligibleShifts > 0) {
+        rate = Math.round((data.absences / data.eligibleShifts) * 1000) / 10;
+      } else if (totalSelAbsences > 0) {
+        rate = Math.round((data.absences / totalSelAbsences) * 1000) / 10;
+      }
+      return {
+        department: dept,
+        rate,
+        hours: Math.round(data.absences * 8 * 10) / 10,
+        absencesCount: data.absences,
+      };
+    })
+    .sort((a, b) => b.rate - a.rate || b.absencesCount - a.absencesCount);
+
+  if (deptAbsArray.length > 0 && deptAbsArray[0].absencesCount > 0) {
+    topAbsDept = deptAbsArray[0];
+  }
+
+  return {
+    totalOvertimeHours: {
+      total: Math.round(selTotalOt * 10) / 10,
+      normales: Math.round(selNormales * 10) / 10,
+      prolongacion: Math.round(selProlongacion * 10) / 10,
+      globalTotal: Math.round(globalTotalOtHours * 10) / 10,
+      percentageOfGlobal: pctOtOfGlobal,
+    },
+    unjustifiedAbsences: {
+      count: selUnjustifiedCount,
+      equivalentHours: Math.round(selUnjustifiedCount * 8 * 10) / 10,
+      globalCount: globalUnjustifiedCount,
+      percentageOfGlobal: pctUnjOfGlobal,
+    },
+    justifiedAbsences: {
+      count: selJustifiedCount,
+      equivalentHours: Math.round(selJustifiedCount * 8 * 10) / 10,
+      globalCount: globalJustifiedCount,
+      percentageOfGlobal: pctJustOfGlobal,
+      breakdown: justifiedBreakdown,
+      breakdownSummary,
+    },
+    topOvertimeDepartment: topOtDept,
+    topAbsenceDepartment: topAbsDept,
+  };
+}
+
+/**
+ * Calcula la Gráfica 1: "Tiempo Extra por Departamento".
+ * REGLA ESTRICTA: Responde ÚNICAMENTE a Semana (ISO 8601) y Mes.
+ * Ignora Departamento, Líder de Área y Búsqueda rápida para mostrar la comparativa completa.
+ */
+export function calculateDepartmentOvertimeChart(params: {
+  annualOvertime?: AnnualOvertimeRecord[];
+  matrixRecords?: WeeklyMatrixRecord[];
+  allOvertime?: OvertimeRecord[];
+  filters: GlobalFilterState;
+}): DepartmentOvertimeChartItem[] {
+  const { annualOvertime = [], matrixRecords = [], allOvertime = [], filters } = params;
+
+  const rawSource: any[] =
+    matrixRecords.length > 0
+      ? matrixRecords
+      : annualOvertime.length > 0
+      ? annualOvertime
+      : allOvertime;
+
+  // Filtrado estricto por Semana y Mes únicamente
+  const periodFiltered = rawSource.filter((r) => passesPeriodFilterOnly(r, filters));
+
+  const deptMap = new Map<
+    string,
+    {
+      hours: number;
+      dates: Set<string>;
+      shifts: { '1er Turno': number; '2do Turno': number; '3er Turno': number };
+    }
+  >();
+
+  let periodTotalHours = 0;
+
+  for (const r of periodFiltered) {
+    const hTot =
+      r.horasTotales !== undefined
+        ? r.horasTotales
+        : (r.horasNormales || 0) + (r.horasProlongacion || 0) ||
+          r.hours ||
+          r.approvedHours ||
+          r.requestedHours ||
+          0;
+
+    if (hTot <= 0) continue;
+    periodTotalHours += hTot;
+
+    const dept = canonicalizeDepartment(r.department || r.Departamento || 'Sin Departamento');
+    const existing = deptMap.get(dept) || {
+      hours: 0,
+      dates: new Set<string>(),
+      shifts: { '1er Turno': 0, '2do Turno': 0, '3er Turno': 0 },
+    };
+
+    existing.hours += hTot;
+
+    // Fechas asociadas
+    if (r.diasDetalle && Array.isArray(r.diasDetalle)) {
+      for (const d of r.diasDetalle) {
+        if ((d.horasTotales || d.horasNormales || d.horasProlongacion) > 0 && d.dateStr) {
+          existing.dates.add(d.dateStr);
+        }
+      }
+    } else {
+      const dt = r.fecha || r.startDate || r.dateOnly || '';
+      if (dt) existing.dates.add(dt);
+    }
+
+    // Turnos asociados
+    if (r.horasPorTurno) {
+      if (r.horasPorTurno.turno1 > 0) existing.shifts['1er Turno'] += r.horasPorTurno.turno1;
+      if (r.horasPorTurno.turno2 > 0) existing.shifts['2do Turno'] += r.horasPorTurno.turno2;
+      if (r.horasPorTurno.turno3 > 0) existing.shifts['3er Turno'] += r.horasPorTurno.turno3;
+    } else {
+      const sName = normalizeShiftName(r.turno);
+      existing.shifts[sName] += hTot;
+    }
+
+    deptMap.set(dept, existing);
+  }
+
+  const result: DepartmentOvertimeChartItem[] = Array.from(deptMap.entries())
+    .map(([department, data]) => {
+      const hours = Math.round(data.hours * 10) / 10;
+      const pct = periodTotalHours > 0 ? Math.round((hours / periodTotalHours) * 1000) / 10 : 0;
+      const datesArr = Array.from(data.dates).sort();
+
+      const shifts = {
+        '1er Turno': Math.round(data.shifts['1er Turno'] * 10) / 10,
+        '2do Turno': Math.round(data.shifts['2do Turno'] * 10) / 10,
+        '3er Turno': Math.round(data.shifts['3er Turno'] * 10) / 10,
+      };
+
+      const shiftsList: string[] = [];
+      if (shifts['1er Turno'] > 0) shiftsList.push(`1er Turno: ${shifts['1er Turno'].toFixed(1)} hrs`);
+      if (shifts['2do Turno'] > 0) shiftsList.push(`2do Turno: ${shifts['2do Turno'].toFixed(1)} hrs`);
+      if (shifts['3er Turno'] > 0) shiftsList.push(`3er Turno: ${shifts['3er Turno'].toFixed(1)} hrs`);
+
+      return {
+        department,
+        hours,
+        percentage: pct,
+        dates: datesArr,
+        datesFormatted: formatDatesSummary(datesArr),
+        shifts,
+        shiftsList: shiftsList.length > 0 ? shiftsList : ['1er Turno'],
+      };
+    })
+    .sort((a, b) => b.hours - a.hours);
+
+  return result;
+}
+
+/**
+ * Calcula la Gráfica 2: "Ausentismo por Departamento".
+ * REGLA ESTRICTA: Responde ÚNICAMENTE a Semana (ISO 8601) y Mes.
+ * Ignora Departamento, Líder de Área y Búsqueda rápida para mostrar la comparativa completa.
+ */
+export function calculateDepartmentAbsenceChart(params: {
+  absenceRecords?: AbsenceRecord[];
+  allAttendance?: AttendanceRecord[];
+  filters: GlobalFilterState;
+}): DepartmentAbsenceChartItem[] {
+  const { absenceRecords = [], allAttendance = [], filters } = params;
+
+  // Directorio auxiliar de turnos por colaborador y fecha desde BioTime
+  const scheduleDirectory = new Map<string, string>();
+  for (const att of allAttendance) {
+    if (att.employeeId) {
+      if (att.date) scheduleDirectory.set(`${att.employeeId.trim()}_${att.date}`, att.schedule);
+      scheduleDirectory.set(att.employeeId.trim(), att.schedule);
+    }
+  }
+
+  const rawSource: any[] =
+    absenceRecords.length > 0
+      ? absenceRecords
+      : allAttendance.filter(
+          (a) => a.absenceStatus === 'AUSENCIA_CONFIRMADA' || a.absenceStatus === 'AUSENCIA_PROBABLE'
+        );
+
+  // Filtrado estricto por Semana y Mes únicamente
+  const periodFiltered = rawSource.filter((r) => passesPeriodFilterOnly(r, filters));
+
+  const deptMap = new Map<
+    string,
+    {
+      absences: number;
+      dates: Set<string>;
+      shifts: { '1er Turno': number; '2do Turno': number; '3er Turno': number };
+    }
+  >();
+
+  let periodTotalAbsences = 0;
+
+  for (const r of periodFiltered) {
+    const qty = Number(r.absences) || 1;
+    if (qty <= 0) continue;
+    periodTotalAbsences += qty;
+
+    const dept = canonicalizeDepartment(r.department || r.Departamento || 'Sin Departamento');
+    const existing = deptMap.get(dept) || {
+      absences: 0,
+      dates: new Set<string>(),
+      shifts: { '1er Turno': 0, '2do Turno': 0, '3er Turno': 0 },
+    };
+
+    existing.absences += qty;
+
+    // Fechas asociadas
+    const start = r.startDate || r.date || '';
+    const end = r.endDate || start;
+    if (start) existing.dates.add(start);
+    if (end && end !== start) existing.dates.add(end);
+
+    // Turno asociado
+    const empId = String(r.employeeId || r.ID || '').trim();
+    const schedMatch = (start && scheduleDirectory.get(`${empId}_${start}`)) || scheduleDirectory.get(empId);
+    const sName = normalizeShiftName(r.turno || r.schedule, schedMatch);
+    existing.shifts[sName] += qty;
+
+    deptMap.set(dept, existing);
+  }
+
+  const result: DepartmentAbsenceChartItem[] = Array.from(deptMap.entries())
+    .map(([department, data]) => {
+      const absences = Math.round(data.absences * 10) / 10;
+      const pct = periodTotalAbsences > 0 ? Math.round((absences / periodTotalAbsences) * 1000) / 10 : 0;
+      const datesArr = Array.from(data.dates).sort();
+
+      const shifts = {
+        '1er Turno': Math.round(data.shifts['1er Turno'] * 10) / 10,
+        '2do Turno': Math.round(data.shifts['2do Turno'] * 10) / 10,
+        '3er Turno': Math.round(data.shifts['3er Turno'] * 10) / 10,
+      };
+
+      const shiftsList: string[] = [];
+      if (shifts['1er Turno'] > 0) shiftsList.push(`1er Turno: ${shifts['1er Turno']} aus.`);
+      if (shifts['2do Turno'] > 0) shiftsList.push(`2do Turno: ${shifts['2do Turno']} aus.`);
+      if (shifts['3er Turno'] > 0) shiftsList.push(`3er Turno: ${shifts['3er Turno']} aus.`);
+
+      return {
+        department,
+        absences,
+        percentage: pct,
+        dates: datesArr,
+        datesFormatted: formatDatesSummary(datesArr),
+        shifts,
+        shiftsList: shiftsList.length > 0 ? shiftsList : ['1er Turno'],
+      };
+    })
+    .sort((a, b) => b.absences - a.absences);
+
+  return result;
+}
+
+/**
+ * Función unificada para calcular todo el Resumen Ejecutivo en una sola llamada:
+ * 5 KPIs y 2 Gráficas analíticas con sus reglas de filtrado respectivas.
+ */
+export function calculateExecutiveSummaryData(params: ExecutiveCalculationParams): ExecutiveSummaryCalculations {
+  const kpis = calculateExecutiveKPIs(params);
+  const overtimeChart = calculateDepartmentOvertimeChart({
+    annualOvertime: params.annualOvertime,
+    matrixRecords: params.matrixRecords,
+    allOvertime: params.allOvertime,
+    filters: params.filters,
+  });
+  const absenceChart = calculateDepartmentAbsenceChart({
+    absenceRecords: params.absenceRecords,
+    allAttendance: params.allAttendance,
+    filters: params.filters,
+  });
+
+  return { kpis, overtimeChart, absenceChart };
 }

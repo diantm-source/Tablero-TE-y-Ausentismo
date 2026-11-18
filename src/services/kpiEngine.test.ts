@@ -1,6 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { applyFilters, computeKPIs, extractBaseTeLeaderCatalog, isRecordInLeaderScope } from './kpiEngine';
-import { OvertimeRecord, AttendanceRecord, GlobalFilterState, ThresholdConfig } from '../types';
+import {
+  applyFilters,
+  calculateDepartmentAbsenceChart,
+  calculateDepartmentOvertimeChart,
+  calculateExecutiveKPIs,
+  calculateExecutiveSummaryData,
+  computeKPIs,
+  extractBaseTeLeaderCatalog,
+  isRecordInLeaderScope,
+  isUnjustifiedAbsence,
+} from './kpiEngine';
+import {
+  AbsenceRecord,
+  AnnualOvertimeRecord,
+  AttendanceRecord,
+  GlobalFilterState,
+  OvertimeRecord,
+  ThresholdConfig,
+  WeeklyMatrixRecord,
+} from '../types';
 
 const mockOvertime: OvertimeRecord[] = [
   {
@@ -581,5 +599,302 @@ describe('kpiEngine Company Presets & Filtering', () => {
     expect(
       isRecordInLeaderScope({ department: 'GENERADOR VAPOR(CALDE' }, ['Ing. Lider Antiguo'], catalog.leaderToDepartments)
     ).toBe(false);
+  });
+
+  describe('Executive Summary: 5 KPIs y 2 Gráficas Analíticas', () => {
+    const mockAnnualOt: AnnualOvertimeRecord[] = [
+      {
+        id: 'aot_1',
+        employeeId: 'EMP01',
+        employeeName: 'Juan Lopez',
+        department: 'Produccion',
+        overtimeType: 'Doble',
+        hours: 10,
+        horasNormales: 8,
+        horasProlongacion: 2,
+        horasTotales: 10,
+        amount: 500,
+        week: 'W42',
+        weekNumber: 42,
+        isoYear: 2026,
+        monthNumber: 10,
+        monthName: 'Octubre',
+        fecha: '2026-10-14',
+        fechaDisplay: '14/10/2026',
+        leader: 'Carlos Lider',
+        turno: '1er Turno',
+      },
+      {
+        id: 'aot_2',
+        employeeId: 'EMP02',
+        employeeName: 'Maria Perez',
+        department: 'Mantenimiento',
+        overtimeType: 'Doble',
+        hours: 6,
+        horasNormales: 5,
+        horasProlongacion: 1,
+        horasTotales: 6,
+        amount: 300,
+        week: 'W42',
+        weekNumber: 42,
+        isoYear: 2026,
+        monthNumber: 10,
+        monthName: 'Octubre',
+        fecha: '2026-10-15',
+        fechaDisplay: '15/10/2026',
+        leader: 'Pedro Ramos',
+        turno: '2do Turno',
+      },
+      {
+        id: 'aot_3',
+        employeeId: 'EMP03',
+        employeeName: 'Luis Gomez',
+        department: 'Produccion',
+        overtimeType: 'Doble',
+        hours: 4,
+        horasNormales: 4,
+        horasProlongacion: 0,
+        horasTotales: 4,
+        amount: 200,
+        week: 'W43',
+        weekNumber: 43,
+        isoYear: 2026,
+        monthNumber: 10,
+        monthName: 'Octubre',
+        fecha: '2026-10-22',
+        fechaDisplay: '22/10/2026',
+        leader: 'Carlos Lider',
+        turno: '1er Turno',
+      },
+      {
+        id: 'aot_4',
+        employeeId: 'EMP04',
+        employeeName: 'Ana Soto',
+        department: 'Calidad',
+        overtimeType: 'Doble',
+        hours: 5,
+        horasNormales: 5,
+        horasProlongacion: 0,
+        horasTotales: 5,
+        amount: 250,
+        week: 'W44',
+        weekNumber: 44,
+        isoYear: 2026,
+        monthNumber: 11,
+        monthName: 'Noviembre',
+        fecha: '2026-11-04',
+        fechaDisplay: '04/11/2026',
+        leader: 'Ana Morales',
+        turno: '3er Turno',
+      },
+    ];
+
+    const mockAbsences: AbsenceRecord[] = [
+      {
+        id: 'abs_1',
+        employeeId: 'EMP01',
+        employeeName: 'Juan Lopez',
+        position: 'Operador',
+        department: 'Produccion',
+        absenceType: 'Falta Injustificada',
+        absenceCategory: 'Injustificada',
+        absences: 1,
+        amount: 400,
+        startDate: '2026-10-14',
+        startDateDisplay: '14/10/2026',
+        endDate: '2026-10-14',
+        endDateDisplay: '14/10/2026',
+        week: 'W42',
+        weekNumber: 42,
+        isoYear: 2026,
+        leader: 'Carlos Lider',
+      },
+      {
+        id: 'abs_2',
+        employeeId: 'EMP02',
+        employeeName: 'Maria Perez',
+        position: 'Mecanico',
+        department: 'Mantenimiento',
+        absenceType: 'FALTA INJUSTIFICADA',
+        absenceCategory: 'Injustificada',
+        absences: 2,
+        amount: 800,
+        startDate: '2026-10-15',
+        startDateDisplay: '15/10/2026',
+        endDate: '2026-10-16',
+        endDateDisplay: '16/10/2026',
+        week: 'W42',
+        weekNumber: 42,
+        isoYear: 2026,
+        leader: 'Pedro Ramos',
+      },
+      {
+        id: 'abs_3',
+        employeeId: 'EMP05',
+        employeeName: 'Roberto Diaz',
+        position: 'Tecnico',
+        department: 'Calidad',
+        absenceType: 'Incapacidad Enfermedad General',
+        absenceCategory: 'Incapacidad',
+        absences: 3,
+        amount: 1200,
+        startDate: '2026-10-16',
+        startDateDisplay: '16/10/2026',
+        endDate: '2026-10-18',
+        endDateDisplay: '18/10/2026',
+        week: 'W42',
+        weekNumber: 42,
+        isoYear: 2026,
+        leader: 'Ana Morales',
+      },
+      {
+        id: 'abs_4',
+        employeeId: 'EMP06',
+        employeeName: 'Laura Ramos',
+        position: 'Operador',
+        department: 'Produccion',
+        absenceType: 'Vacaciones',
+        absenceCategory: 'Vacaciones',
+        absences: 2,
+        amount: 800,
+        startDate: '2026-10-21',
+        startDateDisplay: '21/10/2026',
+        endDate: '2026-10-22',
+        endDateDisplay: '22/10/2026',
+        week: 'W43',
+        weekNumber: 43,
+        isoYear: 2026,
+        leader: 'Carlos Lider',
+      },
+    ];
+
+    it('normaliza correctamente "Falta injustificada" de forma case-insensitive', () => {
+      expect(isUnjustifiedAbsence('Falta injustificada')).toBe(true);
+      expect(isUnjustifiedAbsence('FALTA INJUSTIFICADA')).toBe(true);
+      expect(isUnjustifiedAbsence('falta injustificada  ')).toBe(true);
+      expect(isUnjustifiedAbsence('Incapacidad')).toBe(false);
+      expect(isUnjustifiedAbsence('Vacaciones')).toBe(false);
+      expect(isUnjustifiedAbsence('Permiso con goce')).toBe(false);
+    });
+
+    it('calcula los 5 KPIs respondiendo a los filtros de Semana, Mes, Departamento y Líder', () => {
+      // Filtro por Semana 42
+      const filterW42: GlobalFilterState = {
+        ...defaultFilters,
+        isoWeek: '2026-W42',
+      };
+
+      const kpisW42 = calculateExecutiveKPIs({
+        annualOvertime: mockAnnualOt,
+        absenceRecords: mockAbsences,
+        filters: filterW42,
+      });
+
+      // Total global de TE: 10 + 6 + 4 + 5 = 25 hrs
+      expect(kpisW42.totalOvertimeHours.globalTotal).toBe(25);
+      // En W42: aot_1 (10h: 8 norm + 2 prol) + aot_2 (6h: 5 norm + 1 prol) = 16h (13 norm + 3 prol)
+      expect(kpisW42.totalOvertimeHours.total).toBe(16);
+      expect(kpisW42.totalOvertimeHours.normales).toBe(13);
+      expect(kpisW42.totalOvertimeHours.prolongacion).toBe(3);
+      expect(kpisW42.totalOvertimeHours.percentageOfGlobal).toBe(64); // 16 / 25 = 64%
+
+      // Ausencias en W42:
+      // Injustificadas: abs_1 (1) + abs_2 (2) = 3 faltas (24 hrs equiv)
+      expect(kpisW42.unjustifiedAbsences.count).toBe(3);
+      expect(kpisW42.unjustifiedAbsences.equivalentHours).toBe(24);
+      expect(kpisW42.unjustifiedAbsences.globalCount).toBe(3);
+      expect(kpisW42.unjustifiedAbsences.percentageOfGlobal).toBe(100);
+
+      // Justificadas: abs_3 (3) = 3 ausencias justificadas (Incapacidad Enfermedad General)
+      expect(kpisW42.justifiedAbsences.count).toBe(3);
+      expect(kpisW42.justifiedAbsences.equivalentHours).toBe(24);
+      expect(kpisW42.justifiedAbsences.globalCount).toBe(5); // 3 (incapacidad) + 2 (vacaciones) = 5
+      expect(kpisW42.justifiedAbsences.percentageOfGlobal).toBe(60); // 3 / 5 = 60%
+
+      // Mayor volumen TE en W42: Produccion con 10 hrs, lider Carlos Lider
+      expect(kpisW42.topOvertimeDepartment?.department).toBe('Produccion');
+      expect(kpisW42.topOvertimeDepartment?.hours).toBe(10);
+      expect(kpisW42.topOvertimeDepartment?.leader).toBe('Carlos Lider');
+
+      // Mayor ausentismo en W42: Calidad (3 aus.) o Mantenimiento (2 aus.)
+      expect(kpisW42.topAbsenceDepartment?.department).toBe('Calidad');
+      expect(kpisW42.topAbsenceDepartment?.hours).toBe(24); // 3 * 8 = 24 hrs de ausencia
+    });
+
+    it('los 5 KPIs responden al filtro de Líder de Área', () => {
+      const filterLeader: GlobalFilterState = {
+        ...defaultFilters,
+        leaders: ['Carlos Lider'],
+      };
+
+      const kpisLeader = calculateExecutiveKPIs({
+        annualOvertime: mockAnnualOt,
+        absenceRecords: mockAbsences,
+        filters: filterLeader,
+      });
+
+      // Carlos Lider tiene aot_1 (10h) y aot_3 (4h) = 14h
+      expect(kpisLeader.totalOvertimeHours.total).toBe(14);
+      expect(kpisLeader.topOvertimeDepartment?.department).toBe('Produccion');
+      expect(kpisLeader.topOvertimeDepartment?.leader).toBe('Carlos Lider');
+    });
+
+    it('las 2 gráficas responden ÚNICAMENTE a Semana y Mes e ignoran Departamento y Líder', () => {
+      // Filtro que tiene Semana 42 PERO también Departamento "Mantenimiento" y Líder "Pedro Ramos"
+      const filterWithDeptAndLeader: GlobalFilterState = {
+        ...defaultFilters,
+        isoWeek: '2026-W42',
+        departments: ['Mantenimiento'],
+        leaders: ['Pedro Ramos'],
+      };
+
+      // Gráfica 1: Tiempo Extra por Departamento
+      const otChart = calculateDepartmentOvertimeChart({
+        annualOvertime: mockAnnualOt,
+        filters: filterWithDeptAndLeader,
+      });
+
+      // Debe incluir TODOS los departamentos de la Semana 42 (Produccion y Mantenimiento),
+      // IGNORANDO que filters.departments sea ['Mantenimiento']
+      expect(otChart.length).toBe(2);
+      expect(otChart[0].department).toBe('Produccion');
+      expect(otChart[0].hours).toBe(10);
+      expect(otChart[0].percentage).toBe(62.5); // 10 / 16 = 62.5%
+      expect(otChart[0].dates).toContain('2026-10-14');
+      expect(otChart[1].department).toBe('Mantenimiento');
+      expect(otChart[1].hours).toBe(6);
+      expect(otChart[1].percentage).toBe(37.5); // 6 / 16 = 37.5%
+
+      // Gráfica 2: Ausentismo por Departamento
+      const absChart = calculateDepartmentAbsenceChart({
+        absenceRecords: mockAbsences,
+        filters: filterWithDeptAndLeader,
+      });
+
+      // Debe incluir TODOS los departamentos con ausencias en la Semana 42 (Calidad, Mantenimiento, Produccion)
+      expect(absChart.length).toBe(3);
+      expect(absChart[0].department).toBe('Calidad');
+      expect(absChart[0].absences).toBe(3);
+      expect(absChart[0].percentage).toBe(50); // 3 / 6 = 50%
+      expect(absChart[1].department).toBe('Mantenimiento');
+      expect(absChart[1].absences).toBe(2);
+      expect(absChart[2].department).toBe('Produccion');
+      expect(absChart[2].absences).toBe(1);
+    });
+
+    it('calculateExecutiveSummaryData entrega la estructura completa unificada', () => {
+      const result = calculateExecutiveSummaryData({
+        annualOvertime: mockAnnualOt,
+        absenceRecords: mockAbsences,
+        filters: defaultFilters,
+      });
+
+      expect(result.kpis).toBeDefined();
+      expect(result.overtimeChart).toBeDefined();
+      expect(result.absenceChart).toBeDefined();
+      expect(result.kpis.totalOvertimeHours.total).toBe(25);
+      expect(result.overtimeChart.length).toBe(3); // Produccion, Mantenimiento, Calidad
+      expect(result.absenceChart.length).toBe(3); // Calidad, Produccion, Mantenimiento
+    });
   });
 });
