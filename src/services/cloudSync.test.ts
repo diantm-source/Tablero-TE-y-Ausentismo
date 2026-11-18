@@ -272,8 +272,9 @@ describe('cloudSync Service', () => {
     it('resolves Ausentismo Sheets URL converting /pubhtml to /pub?output=csv', () => {
       const pubhtml =
         'https://docs.google.com/spreadsheets/d/e/2PACX-1vQBrwUDfzZ94wGnudb02K1U2ZRZSeJlCVlabUQRoAfE4p6Y4hnreTwYgIc7oKKtNIX64HJPyLkpxujg/pubhtml';
-      expect(getEffectiveAbsenceCloudSyncUrl(pubhtml)).toBe(DEFAULT_ABSENCE_SHEETS_CSV_URL);
-      expect(DEFAULT_ABSENCE_SHEETS_CSV_URL).toContain('/pub?output=csv');
+      expect(normalizeSheetsUrl(pubhtml)).toBe(
+        'https://docs.google.com/spreadsheets/d/e/2PACX-1vQBrwUDfzZ94wGnudb02K1U2ZRZSeJlCVlabUQRoAfE4p6Y4hnreTwYgIc7oKKtNIX64HJPyLkpxujg/pub?output=csv'
+      );
     });
 
     it('parses all 12 Concentrado de Ausencias CSV columns accurately without colliding Tipo de ausentismo and Tipo Ausentismo', () => {

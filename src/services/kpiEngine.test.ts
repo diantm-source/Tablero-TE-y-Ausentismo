@@ -5,10 +5,13 @@ import {
   calculateDepartmentOvertimeChart,
   calculateExecutiveKPIs,
   calculateExecutiveSummaryData,
+  classifyOvertimeCollaborator,
   computeKPIs,
+  evaluateTrafficLight,
   extractBaseTeLeaderCatalog,
   isRecordInLeaderScope,
   isUnjustifiedAbsence,
+  TRAFFIC_LIGHT_LABELS,
 } from './kpiEngine';
 import {
   AbsenceRecord,
@@ -895,6 +898,79 @@ describe('kpiEngine Company Presets & Filtering', () => {
       expect(result.kpis.totalOvertimeHours.total).toBe(25);
       expect(result.overtimeChart.length).toBe(3); // Produccion, Mantenimiento, Calidad
       expect(result.absenceChart.length).toBe(3); // Calidad, Produccion, Mantenimiento
+    });
+  });
+
+  describe('Semáforo Semanal de Tiempo Extra - 4 Estados (Rojo, Amarillo, Verde, Sin HRS)', () => {
+    it('clasifica como Sin HRS (0 horas) cuando horasExtra === 0 && prolongacionJornada === 0', () => {
+      const res0 = classifyOvertimeCollaborator(0, 0);
+      expect(res0.totalHoras).toBe(0);
+      expect(res0.semaforo).toBe('SIN_HRS');
+      expect(res0.label).toBe('Sin HRS');
+
+      expect(evaluateTrafficLight(0)).toBe('SIN_HRS');
+      expect(evaluateTrafficLight(-2)).toBe('SIN_HRS');
+    });
+
+    it('clasifica estrictamente como Verde únicamente entre > 0 y <= 7 horas', () => {
+      const res05 = classifyOvertimeCollaborator(0.5, 0);
+      expect(res05.totalHoras).toBe(0.5);
+      expect(res05.semaforo).toBe('VERDE');
+      expect(res05.label).toBe('Verde (1 - 7 hrs)');
+
+      const res1 = classifyOvertimeCollaborator(1, 0);
+      expect(res1.totalHoras).toBe(1);
+      expect(res1.semaforo).toBe('VERDE');
+
+      const resMixed = classifyOvertimeCollaborator(4, 2);
+      expect(resMixed.totalHoras).toBe(6);
+      expect(resMixed.semaforo).toBe('VERDE');
+
+      const res7 = classifyOvertimeCollaborator(5, 2);
+      expect(res7.totalHoras).toBe(7);
+      expect(res7.semaforo).toBe('VERDE');
+      expect(res7.label).toBe('Verde (1 - 7 hrs)');
+
+      expect(evaluateTrafficLight(7)).toBe('VERDE');
+    });
+
+    it('clasifica como Amarillo cuando totalHoras > 7 y <= 9 horas', () => {
+      const res71 = classifyOvertimeCollaborator(7.1, 0);
+      expect(res71.totalHoras).toBe(7.1);
+      expect(res71.semaforo).toBe('AMARILLO');
+      expect(res71.label).toBe('Amarillo (7 - 9 hrs)');
+
+      const res8 = classifyOvertimeCollaborator(6, 2);
+      expect(res8.totalHoras).toBe(8);
+      expect(res8.semaforo).toBe('AMARILLO');
+
+      const res9 = classifyOvertimeCollaborator(7, 2);
+      expect(res9.totalHoras).toBe(9);
+      expect(res9.semaforo).toBe('AMARILLO');
+      expect(res9.label).toBe('Amarillo (7 - 9 hrs)');
+
+      expect(evaluateTrafficLight(9)).toBe('AMARILLO');
+    });
+
+    it('clasifica como Rojo cuando totalHoras > 9 horas', () => {
+      const res95 = classifyOvertimeCollaborator(8, 1.5);
+      expect(res95.totalHoras).toBe(9.5);
+      expect(res95.semaforo).toBe('ROJO');
+      expect(res95.label).toBe('Rojo (> 9 hrs)');
+
+      const res12 = classifyOvertimeCollaborator(10, 2);
+      expect(res12.totalHoras).toBe(12);
+      expect(res12.semaforo).toBe('ROJO');
+      expect(res12.label).toBe('Rojo (> 9 hrs)');
+
+      expect(evaluateTrafficLight(10)).toBe('ROJO');
+    });
+
+    it('valida las etiquetas oficiales de TRAFFIC_LIGHT_LABELS', () => {
+      expect(TRAFFIC_LIGHT_LABELS.ROJO).toBe('Rojo (> 9 hrs)');
+      expect(TRAFFIC_LIGHT_LABELS.AMARILLO).toBe('Amarillo (7 - 9 hrs)');
+      expect(TRAFFIC_LIGHT_LABELS.VERDE).toBe('Verde (1 - 7 hrs)');
+      expect(TRAFFIC_LIGHT_LABELS.SIN_HRS).toBe('Sin HRS');
     });
   });
 });

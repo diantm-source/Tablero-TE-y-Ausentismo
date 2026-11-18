@@ -579,7 +579,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
           </div>
           <h2 className="text-xl font-bold text-slate-900">Análisis y Auditoría de Tiempo Extra</h2>
           <p className="text-xs text-slate-600 mt-0.5">
-            Sincronización multi-hoja de la Matriz Semanal y desglose de Horas Extra Normales vs Prolongación de Jornada.
+            Sincronización multi-hoja de la Matriz Semanal y desglose de Horas Extra vs Prolongación de jornada.
           </p>
         </div>
 
@@ -641,11 +641,11 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
           </div>
         </div>
 
-        {/* 3. Horas Extra Normal */}
+        {/* 3. Horas Extra */}
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Horas Extra Normal
+              Horas Extra
             </span>
             <span className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
               <i className="bi bi-lightning-charge-fill text-sm"></i>
@@ -661,11 +661,11 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
           </div>
         </div>
 
-        {/* 4. Horas Prolongación de Jornada */}
+        {/* 4. Prolongación de jornada */}
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Horas Prolongación de Jornada
+              Prolongación de jornada
             </span>
             <span className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
               <i className="bi bi-hourglass-split text-sm"></i>
@@ -893,11 +893,11 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                       {topCollaborator.horasTotales.toFixed(1)} <span className="text-base font-bold text-slate-600">hrs</span>
                     </div>
                     <div className="text-[11px] text-slate-500 flex items-center justify-end gap-2 mt-1">
-                      <span className="text-sky-700 font-bold bg-sky-50 px-1.5 py-0.5 rounded border border-sky-100" title="Horas Extra Normales">
+                      <span className="text-sky-700 font-bold bg-sky-50 px-1.5 py-0.5 rounded border border-sky-100" title="Horas Extra">
                         {topCollaborator.horasNormales.toFixed(1)} h norm.
                       </span>
                       <span className="text-slate-400">+</span>
-                      <span className="text-indigo-700 font-bold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100" title="Horas Prolongación de Jornada">
+                      <span className="text-indigo-700 font-bold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100" title="Prolongación de jornada">
                         {topCollaborator.horasProlongacion.toFixed(1)} h prol.
                       </span>
                     </div>

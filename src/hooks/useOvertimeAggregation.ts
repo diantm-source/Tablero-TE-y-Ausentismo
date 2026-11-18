@@ -264,6 +264,8 @@ export function useOvertimeAggregation(
           rojoCount: 0,
           amarilloCount: 0,
           verdeCount: 0,
+          sinHorasCount: 0,
+          sinHrsCount: 0,
           totalHorasAprobadas: 0,
           totalHorasPendientes: 0,
           totalAcumulado: 0,

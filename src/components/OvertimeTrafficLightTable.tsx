@@ -33,10 +33,10 @@ export interface TrafficLightTableRow {
   isSyndicated: boolean;
   semana: string;
   turno?: string;
-  horasNormales: number; // H. Extra Normal (horas puras con color)
-  horasProlongacion: number; // H. Prolongación
-  horasTotales: number; // Total Horas Extra (Normal + Prolongación)
-  semaforo: TrafficLightStatus; // ROJO (>9h), AMARILLO (7-9h), VERDE (<7h)
+  horasNormales: number; // Horas Extra (horas puras con color)
+  horasProlongacion: number; // Prolongación de jornada
+  horasTotales: number; // Total Horas Extra (Horas Extra + Prolongación de jornada)
+  semaforo: TrafficLightStatus; // ROJO (>9h), AMARILLO (7-9h), VERDE (1-7h), SIN_HRS (0h)
   diasLaborados?: number;
   horasAprobadas?: number;
   horasPendientes?: number;
@@ -58,7 +58,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
   const [localParsedRows, setLocalParsedRows] = useState<NormalizedOvertimeRow[] | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [trafficFilter, setTrafficFilter] = useState<'ALL' | 'ROJO' | 'AMARILLO' | 'VERDE'>('ALL');
+  const [trafficFilter, setTrafficFilter] = useState<'ALL' | 'ROJO' | 'AMARILLO' | 'VERDE' | 'SIN_HRS'>('ALL');
   const [globalFilter, setGlobalFilter] = useState('');
   const [evalMode, setEvalMode] = useState<TrafficLightEvaluationMode>('EQUIVALENCIA');
   const [sorting, setSorting] = useState<SortingState>([
@@ -137,6 +137,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
       let rCount = 0;
       let aCount = 0;
       let vCount = 0;
+      let sCount = 0;
       let totNorm = 0;
       let totProl = 0;
       let totH = 0;
@@ -144,7 +145,8 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
       for (const row of allRows) {
         if (row.semaforo === 'ROJO') rCount++;
         else if (row.semaforo === 'AMARILLO') aCount++;
-        else vCount++;
+        else if (row.semaforo === 'VERDE') vCount++;
+        else sCount++;
 
         totNorm += row.horasNormales;
         totProl += row.horasProlongacion;
@@ -158,6 +160,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
         rojoCount: rCount,
         amarilloCount: aCount,
         verdeCount: vCount,
+        sinHrsCount: sCount,
         totalHorasAprobadas: Math.round(totNorm * 10) / 10,
         totalHorasPendientes: 0,
         totalAcumulado: Math.round(totNorm * 10) / 10,
@@ -168,12 +171,29 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
       };
     }
 
-    return legacyKpis;
+    let sCount = 0;
+    for (const row of allRows) {
+      if (
+        row.semaforo === 'SIN_HRS' ||
+        row.semaforo === 'SIN_HORAS' ||
+        (row.horasTotales === 0 && row.horasNormales === 0 && row.horasProlongacion === 0)
+      ) {
+        sCount++;
+      }
+    }
+
+    return {
+      ...legacyKpis,
+      sinHrsCount: legacyKpis.sinHrsCount ?? legacyKpis.sinHorasCount ?? sCount,
+    };
   }, [isMatrixMode, allRows, legacyKpis]);
 
   // Filtrado por la pestaña del semáforo seleccionada
   const filteredData = useMemo(() => {
     if (trafficFilter === 'ALL') return allRows;
+    if (trafficFilter === 'SIN_HRS') {
+      return allRows.filter((item) => item.semaforo === 'SIN_HRS' || item.semaforo === 'SIN_HORAS');
+    }
     return allRows.filter((item) => item.semaforo === trafficFilter);
   }, [allRows, trafficFilter]);
 
@@ -222,15 +242,17 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
       Tipo: r.tipoColaborador,
       Sindicalizado: r.isSyndicated ? 'SÍ' : 'NO',
       Semana: r.semana,
-      'H. Extra Normal (hrs)': r.horasNormales,
-      'H. Prolongación (hrs)': r.horasProlongacion,
-      'Total Horas Extra (hrs)': r.horasTotales,
+      'Horas Extra': r.horasNormales,
+      'Prolongación de jornada': r.horasProlongacion,
+      'Total Horas Extra': r.horasTotales,
       Semáforo:
         r.semaforo === 'ROJO'
-          ? 'ROJO (> 9h)'
+          ? 'Rojo (> 9 hrs)'
           : r.semaforo === 'AMARILLO'
-          ? 'AMARILLO (7 - 9h)'
-          : 'VERDE (< 7h)',
+          ? 'Amarillo (7 - 9 hrs)'
+          : r.semaforo === 'VERDE'
+          ? 'Verde (1 - 7 hrs)'
+          : 'Sin HRS',
     }));
     exportToExcel(exportRows, `Semaforo_TE_Matriz_${trafficFilter}`);
   };
@@ -328,11 +350,11 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
       },
       {
         accessorKey: 'horasNormales',
-        header: 'H. Extra Normal',
+        header: 'Horas Extra',
         cell: ({ row }) => (
           <span
             className="font-mono font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded border border-sky-200 text-xs inline-block text-right"
-            title="Suma de horas extra puras (celdas con color de relleno)"
+            title="Horas Extra"
           >
             {row.original.horasNormales.toFixed(1)} hrs
           </span>
@@ -340,11 +362,11 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
       },
       {
         accessorKey: 'horasProlongacion',
-        header: 'H. Prolongación',
+        header: 'Prolongación de jornada',
         cell: ({ row }) => (
           <span
             className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded border border-indigo-200 text-xs inline-block text-right"
-            title="Suma de horas de prolongación de jornada registradas"
+            title="Prolongación de jornada"
           >
             {row.original.horasProlongacion.toFixed(1)} hrs
           </span>
@@ -356,7 +378,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
         cell: ({ row }) => (
           <span
             className="font-mono font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded border border-slate-300 text-xs inline-block text-right shadow-2xs"
-            title={`Suma exacta: ${row.original.horasNormales.toFixed(1)} hrs normal + ${row.original.horasProlongacion.toFixed(1)} hrs prolongación`}
+            title={`Suma exacta: ${row.original.horasNormales.toFixed(1)} hrs Horas Extra + ${row.original.horasProlongacion.toFixed(1)} hrs Prolongación de jornada`}
           >
             {row.original.horasTotales.toFixed(1)} hrs
           </span>
@@ -373,10 +395,10 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
             return (
               <span
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-500 shadow-xs"
-                title={`Semáforo legal: ${tot.toFixed(1)} hrs (> 9h)`}
+                title={`Semáforo legal: ${tot.toFixed(1)} hrs (> 9 hrs)`}
               >
                 <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
-                <span>Rojo (&gt; 9h)</span>
+                <span>Rojo (&gt; 9 hrs)</span>
               </span>
             );
           }
@@ -385,21 +407,33 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
             return (
               <span
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-500 shadow-xs"
-                title={`Semáforo legal: ${tot.toFixed(1)} hrs (7 - 9h)`}
+                title={`Semáforo legal: ${tot.toFixed(1)} hrs (7 - 9 hrs)`}
               >
                 <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                <span>Amarillo (7 - 9h)</span>
+                <span>Amarillo (7 - 9 hrs)</span>
+              </span>
+            );
+          }
+
+          if (status === 'VERDE') {
+            return (
+              <span
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-500 shadow-xs"
+                title={`Semáforo legal: ${tot.toFixed(1)} hrs (1 - 7 hrs)`}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span>Verde (1 - 7 hrs)</span>
               </span>
             );
           }
 
           return (
             <span
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-500 shadow-xs"
-              title={`Semáforo legal: ${tot.toFixed(1)} hrs (< 7h)`}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-300 shadow-xs"
+              title={`Sin Horas: ${tot.toFixed(1)} hrs (0 hrs)`}
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span>Verde (&lt; 7h)</span>
+              <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+              <span>⚪ Sin HRS</span>
             </span>
           );
         },
@@ -431,7 +465,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
   return (
     <div className="space-y-4">
       {/* KPI Cards Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {/* Rojo Card */}
         <div
           onClick={() => setTrafficFilter(trafficFilter === 'ROJO' ? 'ALL' : 'ROJO')}
@@ -444,7 +478,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
-              Rojo (&gt; 9 horas)
+              Rojo (&gt; 9 hrs)
             </span>
             <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-100 text-rose-800">
               Límite Crítico
@@ -472,7 +506,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-              Amarillo (7 - 9 horas)
+              Amarillo (7 - 9 hrs)
             </span>
             <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800">
               Alerta Preventiva
@@ -500,7 +534,7 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              Verde (&lt; 7 horas)
+              Verde (1 - 7 hrs)
             </span>
             <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800">
               Dentro de Norma
@@ -511,6 +545,34 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
             <span className="text-xs text-slate-500">
               {currentKPIs.totalColaboradores > 0
                 ? `${Math.round((currentKPIs.verdeCount / currentKPIs.totalColaboradores) * 100)}% de selección`
+                : '0%'}
+            </span>
+          </div>
+        </div>
+
+        {/* Sin HRS Card */}
+        <div
+          onClick={() => setTrafficFilter(trafficFilter === 'SIN_HRS' ? 'ALL' : 'SIN_HRS')}
+          className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+            trafficFilter === 'SIN_HRS'
+              ? 'bg-slate-200 border-slate-500 ring-2 ring-slate-500/30 text-slate-700'
+              : 'bg-slate-100 text-slate-600 border-slate-200 hover:border-slate-300 shadow-sm'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+              Sin HRS (0 HORAS)
+            </span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-200 text-slate-600">
+              0 Horas
+            </span>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="text-2xl font-black text-slate-700">{currentKPIs.sinHrsCount || 0}</span>
+            <span className="text-xs text-slate-500">
+              {currentKPIs.totalColaboradores > 0
+                ? `${Math.round(((currentKPIs.sinHrsCount || 0) / currentKPIs.totalColaboradores) * 100)}% de selección`
                 : '0%'}
             </span>
           </div>
@@ -531,12 +593,12 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
               <span className="text-xl font-black text-indigo-900" title="Total Horas Extra">
                 {currentKPIs.totalEquivalenciaHoraria.toFixed(1)}h <span className="text-xs font-normal text-slate-500">(Total TE)</span>
               </span>
-              <span className="text-xs font-semibold text-slate-600" title="Horas Normales">
-                {currentKPIs.totalAcumulado.toFixed(1)}h Normales
+              <span className="text-xs font-semibold text-slate-600" title="Horas Extra">
+                {currentKPIs.totalAcumulado.toFixed(1)}h Horas Extra
               </span>
               {currentKPIs.totalHorasProlongacion > 0 && (
-                <span className="text-[10px] text-indigo-600 font-semibold font-mono">
-                  +{currentKPIs.totalHorasProlongacion.toFixed(1)}h Prolongación
+                <span className="text-[10px] text-indigo-600 font-semibold font-mono" title="Prolongación de jornada">
+                  +{currentKPIs.totalHorasProlongacion.toFixed(1)}h Prolongación de jornada
                 </span>
               )}
             </div>
@@ -601,6 +663,18 @@ export const OvertimeTrafficLightTable: React.FC<OvertimeTrafficLightTableProps>
             >
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               Verde ({currentKPIs.verdeCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setTrafficFilter('SIN_HRS')}
+              className={`px-3 py-1.5 rounded-md font-semibold transition-colors shrink-0 flex items-center gap-1.5 ${
+                trafficFilter === 'SIN_HRS'
+                  ? 'bg-slate-700 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-200/70'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+              Sin HRS ({currentKPIs.sinHrsCount || 0})
             </button>
           </div>
 

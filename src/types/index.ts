@@ -184,7 +184,7 @@ export interface ThresholdConfig {
   absenceCriticalRate: number; // e.g. 5.0%
 }
 
-export type TrafficLightStatus = 'ROJO' | 'AMARILLO' | 'VERDE';
+export type TrafficLightStatus = 'ROJO' | 'AMARILLO' | 'VERDE' | 'SIN_HRS' | 'SIN_HORAS';
 
 export type TrafficLightEvaluationMode = 'EQUIVALENCIA' | 'BASE';
 

@@ -13,6 +13,8 @@ import {
   normalizeDeptKey,
   buildLatestDepartmentLeaderMap,
   updateRecordsWithLatestLeaders,
+  TrafficLightStatus,
+  evaluateTrafficLight,
 } from './overtimeParser';
 
 export {
@@ -20,7 +22,37 @@ export {
   normalizeDeptKey,
   buildLatestDepartmentLeaderMap,
   updateRecordsWithLatestLeaders,
+  evaluateTrafficLight,
 };
+export type { TrafficLightStatus };
+
+export const TRAFFIC_LIGHT_LABELS = {
+  ROJO: 'Rojo (> 9 hrs)',
+  AMARILLO: 'Amarillo (7 - 9 hrs)',
+  VERDE: 'Verde (1 - 7 hrs)',
+  SIN_HRS: 'Sin HRS',
+  SIN_HORAS: 'Sin HRS',
+} as const;
+
+/**
+ * Clasifica a un colaborador según sus horas extra y horas de prolongación de jornada:
+ * - Rojo (> 9 horas): totalHoras > 9
+ * - Amarillo (7 - 9 horas): totalHoras > 7 && totalHoras <= 9
+ * - Verde (1 - 7 horas): totalHoras > 0 && totalHoras <= 7
+ * - Sin HRS (0 horas): totalHoras === 0
+ */
+export function classifyOvertimeCollaborator(
+  horasExtra: number = 0,
+  prolongacionJornada: number = 0
+): { totalHoras: number; semaforo: TrafficLightStatus; label: string } {
+  const totalHoras = Math.round((Number(horasExtra || 0) + Number(prolongacionJornada || 0)) * 10) / 10;
+  const semaforo = evaluateTrafficLight(totalHoras);
+  return {
+    totalHoras,
+    semaforo,
+    label: TRAFFIC_LIGHT_LABELS[semaforo] || 'Sin HRS',
+  };
+}
 
 export interface DepartmentMetric {
   department: string;

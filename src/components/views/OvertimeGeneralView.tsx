@@ -395,7 +395,7 @@ export const OvertimeGeneralView: React.FC<OvertimeGeneralViewProps> = ({
       },
       {
         accessorKey: 'horasNormales',
-        header: 'H. Extra Normal',
+        header: 'Horas Extra',
         cell: ({ row }) => {
           const val =
             row.original.horasNormales !== undefined ? row.original.horasNormales : row.original.hours;
@@ -408,7 +408,7 @@ export const OvertimeGeneralView: React.FC<OvertimeGeneralViewProps> = ({
       },
       {
         accessorKey: 'horasProlongacion',
-        header: 'H. Prolongación',
+        header: 'Prolongación de jornada',
         cell: ({ row }) => {
           const val = row.original.horasProlongacion ?? 0;
           return (
@@ -487,8 +487,8 @@ export const OvertimeGeneralView: React.FC<OvertimeGeneralViewProps> = ({
         Departamento: r.department,
         'Líder de área': r.liderArea || r.leader,
         Turno: r.turno || 'Sin Turno',
-        'Horas Extra Normales (TE)': r.horasNormales !== undefined ? r.horasNormales : r.hours,
-        'Horas Prolongación': r.horasProlongacion ?? 0,
+        'Horas Extra': r.horasNormales !== undefined ? r.horasNormales : r.hours,
+        'Prolongación de jornada': r.horasProlongacion ?? 0,
         'Horas Totales': r.horasTotales !== undefined ? r.horasTotales : r.hours,
         'Tipo de TE': r.overtimeType,
         Importe: r.amount || 0,
@@ -518,7 +518,7 @@ export const OvertimeGeneralView: React.FC<OvertimeGeneralViewProps> = ({
               </span>
             </div>
             <p className="text-[11px] text-slate-300 mt-1">
-              Desglose automatizado de <strong>Horas Extra Normales</strong> (color de celda) y <strong>Horas de Prolongación de Jornada</strong> (0.5 T1/T2 y 1.0 T3 sin color).
+              Desglose automatizado de <strong>Horas Extra</strong> (color de celda) y <strong>Prolongación de jornada</strong> (0.5 T1/T2 y 1.0 T3 sin color).
             </p>
           </div>
         </div>

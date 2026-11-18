@@ -138,14 +138,20 @@ describe('Overtime Parser & Traffic Light Logic', () => {
   });
 
   describe('4. Semáforo Condicional', () => {
-    it('classifies Verde when totalHoras < 7', () => {
-      expect(evaluateTrafficLight(0)).toBe('VERDE');
-      expect(evaluateTrafficLight(4.5)).toBe('VERDE');
-      expect(evaluateTrafficLight(6.99)).toBe('VERDE');
+    it('classifies Sin HRS when totalHoras === 0', () => {
+      expect(evaluateTrafficLight(0)).toBe('SIN_HRS');
+      expect(evaluateTrafficLight(-1)).toBe('SIN_HRS');
     });
 
-    it('classifies Amarillo when totalHoras >= 7 and <= 9', () => {
-      expect(evaluateTrafficLight(7)).toBe('AMARILLO');
+    it('classifies Verde when totalHoras > 0 and <= 7', () => {
+      expect(evaluateTrafficLight(0.5)).toBe('VERDE');
+      expect(evaluateTrafficLight(1)).toBe('VERDE');
+      expect(evaluateTrafficLight(4.5)).toBe('VERDE');
+      expect(evaluateTrafficLight(7)).toBe('VERDE');
+    });
+
+    it('classifies Amarillo when totalHoras > 7 and <= 9', () => {
+      expect(evaluateTrafficLight(7.01)).toBe('AMARILLO');
       expect(evaluateTrafficLight(8.25)).toBe('AMARILLO');
       expect(evaluateTrafficLight(9.0)).toBe('AMARILLO');
     });

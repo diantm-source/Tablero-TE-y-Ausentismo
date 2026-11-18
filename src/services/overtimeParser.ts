@@ -7,7 +7,7 @@ import {
   isThirdShift,
 } from './businessRules';
 
-export type TrafficLightStatus = 'ROJO' | 'AMARILLO' | 'VERDE';
+export type TrafficLightStatus = 'ROJO' | 'AMARILLO' | 'VERDE' | 'SIN_HRS' | 'SIN_HORAS';
 
 export type TrafficLightEvaluationMode = 'EQUIVALENCIA' | 'BASE';
 
@@ -75,6 +75,8 @@ export interface OvertimeAggregationKPIs {
   rojoCount: number;
   amarilloCount: number;
   verdeCount: number;
+  sinHorasCount?: number;
+  sinHrsCount?: number;
   totalHorasAprobadas: number;
   totalHorasPendientes: number;
   totalAcumulado: number; // Total H_base
@@ -231,13 +233,15 @@ export function getISOWeekInfo(date: Date): { isoYear: number; isoWeek: number; 
 /**
  * 4. Semáforo Condicional:
  * - Rojo: totalHoras > 9
- * - Amarillo: totalHoras >= 7 y totalHoras <= 9
- * - Verde: totalHoras < 7
+ * - Amarillo: totalHoras > 7 y totalHoras <= 9
+ * - Verde: totalHoras > 0 y totalHoras <= 7
+ * - Sin HRS: totalHoras === 0
  */
 export function evaluateTrafficLight(totalHoras: number): TrafficLightStatus {
   if (totalHoras > 9) return 'ROJO';
-  if (totalHoras >= 7) return 'AMARILLO';
-  return 'VERDE';
+  if (totalHoras > 7) return 'AMARILLO';
+  if (totalHoras > 0) return 'VERDE';
+  return 'SIN_HRS';
 }
 
 export function isSystemOrInvalidLeader(leader: string): boolean {
@@ -857,6 +861,7 @@ export function aggregateOvertimeData(
   let rojoCount = 0;
   let amarilloCount = 0;
   let verdeCount = 0;
+  let sinHrsCount = 0;
   let totalHorasAprobadas = 0;
   let totalHorasPendientes = 0;
   let totalHorasBaseGeneral = 0;
@@ -902,7 +907,8 @@ export function aggregateOvertimeData(
 
     if (semaforo === 'ROJO') rojoCount++;
     else if (semaforo === 'AMARILLO') amarilloCount++;
-    else verdeCount++;
+    else if (semaforo === 'VERDE') verdeCount++;
+    else sinHrsCount++;
 
     if (g.isSyndicated) {
       sindicalizadosCount++;
@@ -970,6 +976,8 @@ export function aggregateOvertimeData(
       rojoCount,
       amarilloCount,
       verdeCount,
+      sinHorasCount: sinHrsCount,
+      sinHrsCount,
       totalHorasAprobadas: Math.round(totalHorasAprobadas * 10) / 10,
       totalHorasPendientes: Math.round(totalHorasPendientes * 10) / 10,
       totalAcumulado: Math.round(totalHorasBaseGeneral * 10) / 10,
