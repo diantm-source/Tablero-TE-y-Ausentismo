@@ -43,6 +43,12 @@ describe('cloudSync Service', () => {
       const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vXXX/pub?output=csv';
       expect(normalizeSheetsUrl(csvUrl)).toBe(csvUrl);
     });
+
+    it('converts /pub?output=xlsx link to /pub?output=csv', () => {
+      const xlsxUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSz2h1JxZc13egzLq27hSaPQHeEwRyyeYfcQjgNXXkCun2YYrqv319wa4SDhDo3xF_q0rNl-Vvqxb6C/pub?output=xlsx';
+      const expected = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSz2h1JxZc13egzLq27hSaPQHeEwRyyeYfcQjgNXXkCun2YYrqv319wa4SDhDo3xF_q0rNl-Vvqxb6C/pub?output=csv';
+      expect(normalizeSheetsUrl(xlsxUrl)).toBe(expected);
+    });
   });
 
   describe('formatSyncTimestampDisplay', () => {

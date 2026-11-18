@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   AbsenceRecord,
   DepartmentLeader,
@@ -10,6 +10,12 @@ import {
 import { ELIGIBLE_SCHEDULES } from '../../services/businessRules';
 import { OFFICIAL_SCHEDULES_CATALOG } from '../../services/scheduleCatalog';
 import { AppStorage } from '../../services/storage';
+import {
+  DepartmentLeaderFormModal,
+  DepartmentLeaderDeleteModal,
+  ToastNotification,
+  ToastMessage,
+} from '../modals/DepartmentLeaderModals';
 import {
   formatSyncTimestampDisplay,
   getEffectiveAbsenceCloudSyncUrl,
@@ -34,6 +40,9 @@ interface CatalogsConfigViewProps {
   onSaveReasons: (reasons: ReasonCatalogItem[]) => void;
   leadersCatalog: DepartmentLeader[];
   onSaveLeaders: (leaders: DepartmentLeader[]) => void;
+  onSaveLeader?: (updated: DepartmentLeader, originalDepartment?: string) => void;
+  onDeleteLeader?: (department: string) => void;
+  onCreateLeader?: (newLeader: DepartmentLeader) => void;
   thresholds: ThresholdConfig;
   onSaveThresholds: (thresholds: ThresholdConfig) => void;
   onRefreshData?: () => void;
@@ -42,6 +51,10 @@ interface CatalogsConfigViewProps {
 export const CatalogsConfigView: React.FC<CatalogsConfigViewProps> = ({
   reasonsCatalog,
   leadersCatalog,
+  onSaveLeaders,
+  onSaveLeader,
+  onDeleteLeader,
+  onCreateLeader,
   thresholds,
   onSaveThresholds,
   onRefreshData,
@@ -49,6 +62,33 @@ export const CatalogsConfigView: React.FC<CatalogsConfigViewProps> = ({
   const [activeTab, setActiveTab] = useState<'reasons' | 'leaders' | 'schedules' | 'thresholds' | 'cloud' | 'backup'>('reasons');
   const [reasonSearch, setReasonSearch] = useState('');
   const [scheduleSearch, setScheduleSearch] = useState('');
+  const [leaderSearch, setLeaderSearch] = useState('');
+
+  // Department / Leader CRUD Modals & Toast State
+  const [formModalOpen, setFormModalOpen] = useState(false);
+  const [editingLeader, setEditingLeader] = useState<DepartmentLeader | null>(null);
+  const [deletingLeader, setDeletingLeader] = useState<DepartmentLeader | null>(null);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+
+  const showToast = (type: 'success' | 'error' | 'info', message: string) => {
+    setToast({ id: String(Date.now()), type, message });
+    setTimeout(() => {
+      setToast((prev) => (prev?.message === message ? null : prev));
+    }, 3500);
+  };
+
+  const existingLeaderNames = useMemo(() => {
+    const set = new Set<string>();
+    for (const l of leadersCatalog) {
+      if (l.leaderName && l.leaderName.trim()) {
+        set.add(l.leaderName.trim());
+      }
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  }, [leadersCatalog]);
+
+  const uniqueLeadersCount = existingLeaderNames.length;
+  const uniqueAreasCount = leadersCatalog.length;
 
   // Cloud Sync state (Tiempo Extra)
   const [cloudUrl, setCloudUrl] = useState(() => getEffectiveCloudSyncUrl());
@@ -354,7 +394,7 @@ export const CatalogsConfigView: React.FC<CatalogsConfigViewProps> = ({
               activeTab === 'leaders' ? 'bg-white shadow text-blue-600 font-bold' : 'text-slate-600'
             }`}
           >
-            Líderes de Área ({leadersCatalog.length})
+            Líderes de Área ({uniqueLeadersCount} líderes / {uniqueAreasCount} áreas)
           </button>
           <button
             onClick={() => setActiveTab('schedules')}
@@ -450,13 +490,47 @@ export const CatalogsConfigView: React.FC<CatalogsConfigViewProps> = ({
 
       {/* Tab: Líderes de Área */}
       {activeTab === 'leaders' && (
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-800">Catálogo de Líderes Departamentales</h3>
-            <span className="text-xs text-slate-500">{leadersCatalog.length} líderes activos</span>
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900">Catálogo de Líderes Departamentales</h3>
+                <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-200 shadow-2xs">
+                  {uniqueLeadersCount} líderes asignados / {uniqueAreasCount} áreas activas
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Relación oficial de departamentos y responsables verificados de Base TE.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <div className="relative">
+                <i className="bi bi-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                <input
+                  type="text"
+                  value={leaderSearch}
+                  onChange={(e) => setLeaderSearch(e.target.value)}
+                  placeholder="Buscar departamento o líder..."
+                  className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-blue-500 w-52 sm:w-64"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingLeader(null);
+                  setFormModalOpen(true);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-sm flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+              >
+                <i className="bi bi-plus-lg"></i>
+                <span>Agregar Asignación</span>
+              </button>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto border border-slate-200 rounded-xl">
             <table className="w-full text-left text-xs text-slate-700">
               <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
                 <tr>
@@ -466,19 +540,65 @@ export const CatalogsConfigView: React.FC<CatalogsConfigViewProps> = ({
                   <th className="py-2.5 px-3">Puesto</th>
                   <th className="py-2.5 px-3">Vigencia Desde</th>
                   <th className="py-2.5 px-3">Colaboradores</th>
+                  <th className="py-2.5 px-3 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {leadersCatalog.map((l) => (
-                  <tr key={l.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-2.5 px-3 font-semibold text-slate-800">{l.company}</td>
-                    <td className="py-2.5 px-3 font-medium text-slate-700">{l.department}</td>
-                    <td className="py-2.5 px-3 font-semibold text-blue-700">{l.leaderName}</td>
-                    <td className="py-2.5 px-3 text-slate-500">{l.leaderPosition}</td>
-                    <td className="py-2.5 px-3 font-mono">{l.validFrom}</td>
-                    <td className="py-2.5 px-3 font-semibold text-slate-800">{l.employeeCount || '-'}</td>
-                  </tr>
-                ))}
+                {leadersCatalog
+                  .filter((l) => {
+                    if (!leaderSearch.trim()) return true;
+                    const q = leaderSearch.toLowerCase();
+                    return (
+                      l.department.toLowerCase().includes(q) ||
+                      l.leaderName.toLowerCase().includes(q) ||
+                      l.leaderPosition.toLowerCase().includes(q) ||
+                      l.company.toLowerCase().includes(q)
+                    );
+                  })
+                  .map((l) => (
+                    <tr key={l.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-2.5 px-3 font-semibold text-slate-800">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                          {l.company}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 font-bold text-slate-900">{l.department}</td>
+                      <td className="py-2.5 px-3 font-semibold text-blue-700">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center text-[10px] font-bold shrink-0">
+                            <i className="bi bi-person"></i>
+                          </div>
+                          <span>{l.leaderName}</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-600">{l.leaderPosition}</td>
+                      <td className="py-2.5 px-3 font-mono text-slate-500">{l.validFrom}</td>
+                      <td className="py-2.5 px-3 font-semibold text-slate-800">{l.employeeCount || '-'}</td>
+                      <td className="py-2.5 px-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingLeader(l);
+                              setFormModalOpen(true);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-blue-700 hover:bg-blue-50 transition-colors cursor-pointer"
+                            title="Editar departamento y líder"
+                          >
+                            <i className="bi bi-pencil-square text-xs"></i>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingLeader(l)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                            title="Eliminar asignación departamental"
+                          >
+                            <i className="bi bi-trash3 text-xs"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
@@ -1106,6 +1226,52 @@ export const CatalogsConfigView: React.FC<CatalogsConfigViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal CRUD: Crear / Editar Departamento y Líder */}
+      <DepartmentLeaderFormModal
+        isOpen={formModalOpen}
+        initialData={editingLeader}
+        existingLeaders={existingLeaderNames}
+        onSave={(leader, originalDept) => {
+          const isNew = !originalDept;
+          if (isNew && onCreateLeader) {
+            onCreateLeader(leader);
+          } else if (onSaveLeader) {
+            onSaveLeader(leader, originalDept);
+          } else {
+            const updated = leadersCatalog.filter((l) => l.department !== (originalDept || leader.department));
+            onSaveLeaders([...updated, leader]);
+          }
+          showToast(
+            'success',
+            isNew
+              ? `Departamento "${leader.department}" registrado con éxito.`
+              : `Asignación de "${leader.department}" actualizada correctamente.`
+          );
+        }}
+        onClose={() => {
+          setFormModalOpen(false);
+          setEditingLeader(null);
+        }}
+      />
+
+      {/* Modal de Confirmación Premium para Eliminar */}
+      <DepartmentLeaderDeleteModal
+        isOpen={Boolean(deletingLeader)}
+        leader={deletingLeader}
+        onConfirm={(dept) => {
+          if (onDeleteLeader) {
+            onDeleteLeader(dept);
+          } else {
+            onSaveLeaders(leadersCatalog.filter((l) => l.department !== dept));
+          }
+          showToast('success', `Departamento "${dept}" eliminado del catálogo.`);
+        }}
+        onClose={() => setDeletingLeader(null)}
+      />
+
+      {/* Toast Notification */}
+      <ToastNotification toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 };

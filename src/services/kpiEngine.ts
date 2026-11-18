@@ -129,50 +129,88 @@ export function extractBaseTeLeaderCatalog(
     isoYear?: number;
     weekNumber?: number;
     isoWeek?: number;
-  }[]
+  }[],
+  activeLeadersCatalog?: { department: string; leaderName: string }[],
+  deletedDepartmentsList?: string[]
 ): BaseTeLeaderCatalog {
   const leaderToDeptMap = new Map<string, Set<string>>();
   const deptToLeaderMap = new Map<string, Set<string>>();
   const allDepts = new Set<string>();
   const allLeaders = new Set<string>();
 
-  if (!records || !Array.isArray(records)) {
-    return {
-      leaderToDepartments: leaderToDeptMap,
-      departmentToLeaders: deptToLeaderMap,
-      leadersList: [],
-      departmentsList: [],
-    };
+  const deletedKeys = new Set((deletedDepartmentsList || []).map((d) => normalizeDeptKey(d)));
+
+  // 1. Identificar el líder más reciente / actualizado para cada área desde registros
+  const deptToLatestLeader = buildLatestDepartmentLeaderMap(records as any);
+
+  // Integrar activeLeadersCatalog (custom overrides y altas manuales del catálogo)
+  if (activeLeadersCatalog && Array.isArray(activeLeadersCatalog)) {
+    for (const l of activeLeadersCatalog) {
+      if (l.department && l.leaderName && l.leaderName.trim()) {
+        const cDept = canonicalizeDepartment(l.department);
+        const k = normalizeDeptKey(cDept);
+        if (!deletedKeys.has(k)) {
+          deptToLatestLeader.set(k, l.leaderName.trim());
+          deptToLatestLeader.set(cDept, l.leaderName.trim());
+        }
+      }
+    }
   }
 
-  // 1. Identificar el líder más reciente / actualizado para cada área
-  const deptToLatestLeader = buildLatestDepartmentLeaderMap(records);
-
   // 2. Mapear cada departamento canónico a su líder más actualizado
-  for (const r of records) {
-    const rawDept = (r.department || (r as any)['Departamento'] || '').trim();
-    if (!rawDept) continue;
+  if (records && Array.isArray(records)) {
+    for (const r of records) {
+      const rawDept = (r.department || (r as any)['Departamento'] || '').trim();
+      if (!rawDept) continue;
 
-    const canonicalDept = canonicalizeDepartment(rawDept);
-    allDepts.add(canonicalDept);
+      const canonicalDept = canonicalizeDepartment(rawDept);
+      const deptKey = normalizeDeptKey(canonicalDept);
+      if (deletedKeys.has(deptKey)) continue;
 
-    const deptKey = normalizeDeptKey(canonicalDept);
-    const latestLeader = deptToLatestLeader.get(deptKey) || deptToLatestLeader.get(canonicalDept);
+      allDepts.add(canonicalDept);
 
-    if (latestLeader) {
-      allLeaders.add(latestLeader);
+      const latestLeader = deptToLatestLeader.get(deptKey) || deptToLatestLeader.get(canonicalDept);
 
-      if (!leaderToDeptMap.has(latestLeader)) {
-        leaderToDeptMap.set(latestLeader, new Set<string>());
+      if (latestLeader && latestLeader !== 'Sin Líder Asignado' && latestLeader !== 'Sin Asignar') {
+        allLeaders.add(latestLeader);
+
+        if (!leaderToDeptMap.has(latestLeader)) {
+          leaderToDeptMap.set(latestLeader, new Set<string>());
+        }
+        leaderToDeptMap.get(latestLeader)!.add(canonicalDept);
+
+        if (!deptToLeaderMap.has(canonicalDept)) {
+          deptToLeaderMap.set(canonicalDept, new Set<string>());
+        }
+        deptToLeaderMap.get(canonicalDept)!.clear();
+        deptToLeaderMap.get(canonicalDept)!.add(latestLeader);
       }
-      leaderToDeptMap.get(latestLeader)!.add(canonicalDept);
+    }
+  }
 
-      if (!deptToLeaderMap.has(canonicalDept)) {
-        deptToLeaderMap.set(canonicalDept, new Set<string>());
+  // 3. Incluir departamentos del catálogo activo que hayan sido agregados manualmente o sin registros
+  if (activeLeadersCatalog && Array.isArray(activeLeadersCatalog)) {
+    for (const l of activeLeadersCatalog) {
+      const cDept = canonicalizeDepartment(l.department);
+      const deptKey = normalizeDeptKey(cDept);
+      if (deletedKeys.has(deptKey)) continue;
+
+      allDepts.add(cDept);
+      const leaderName = l.leaderName?.trim();
+      if (leaderName && leaderName !== 'Sin Líder Asignado' && leaderName !== 'Sin Asignar') {
+        allLeaders.add(leaderName);
+
+        if (!leaderToDeptMap.has(leaderName)) {
+          leaderToDeptMap.set(leaderName, new Set<string>());
+        }
+        leaderToDeptMap.get(leaderName)!.add(cDept);
+
+        if (!deptToLeaderMap.has(cDept)) {
+          deptToLeaderMap.set(cDept, new Set<string>());
+        }
+        deptToLeaderMap.get(cDept)!.clear();
+        deptToLeaderMap.get(cDept)!.add(leaderName);
       }
-      // El departamento queda asignado exclusivamente a su líder más reciente
-      deptToLeaderMap.get(canonicalDept)!.clear();
-      deptToLeaderMap.get(canonicalDept)!.add(latestLeader);
     }
   }
 

@@ -570,7 +570,15 @@ export function determineSyndicatedStatus(
     return true;
   }
   // Default Polaquimia operations
-  if (comp.includes('polaquimia') && (dept.includes('produccion') || dept.includes('mantenimiento') || dept.includes('almacen'))) {
+  if (
+    comp.includes('polaquimia') &&
+    (dept.includes('planta') ||
+      dept.includes('mantenimiento') ||
+      dept.includes('almacen') ||
+      dept.includes('generador') ||
+      dept.includes('trat') ||
+      dept.includes('produccion'))
+  ) {
     return true;
   }
 

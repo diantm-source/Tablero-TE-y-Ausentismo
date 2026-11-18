@@ -51,19 +51,22 @@ export const STORAGE_KEY_ABSENCE_SHEETS_URL = 'pcat_absence_sheets_csv_url';
 export const STORAGE_KEY_MATRIZ_SHEETS_URL = 'pcat_matriz_sheets_url';
 export const STORAGE_KEY_LAST_SYNC = 'pcat_last_sync_timestamp';
 
-// Default fallback URL configurado (Tiempo Extra Concentrado Anual)
+// Default fallback URL configurado (Tiempo Extra Concentrado Anual - Base TE)
 export const DEFAULT_SHEETS_CSV_URL =
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vQB-L3Tzyt1IA9t8Ifmjp4z1QVSIvkToguAcoTipw0SZ-WaZp2g5c3dCyWxQQKB95mFQQPYkrRFlrm3/pub?output=csv';
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vSz2h1JxZc13egzLq27hSaPQHeEwRyyeYfcQjgNXXkCun2YYrqv319wa4SDhDo3xF_q0rNl-Vvqxb6C/pub?output=xlsx';
 
 // Default fallback URL configurado (Concentrado de Ausentismo)
 export const DEFAULT_ABSENCE_SHEETS_CSV_URL =
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vQBrwUDfzZ94wGnudb02K1U2ZRZSeJlCVlabUQRoAfE4p6Y4hnreTwYgIc7oKKtNIX64HJPyLkpxujg/pub?output=csv';
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vQBrwUDfzZ94wGnudb02K1U2ZRZSeJlCVlabUQRoAfE4p6Y4hnreTwYgIc7oKKtNIX64HJPyLkpxujg/pub?output=xlsx';
 
-// Default fallback URL configurado (Registro_Prolongacion - Matriz Semanal de Tiempo Extra y Prolongación de Jornada en Excel)
+// Default fallback URL configurado (Registro_Prolongacion / Formato A 26v1 - Matriz Semanal de Tiempo Extra y Prolongación de Jornada en Excel)
 export const DEFAULT_MATRIZ_SHEETS_URL =
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRA6U41IpBZZdoxc7lsOi3dTdE6fvIWJvtxZQnSDfsvKnixxX0K9fmb31poiAB31w/pub?output=xlsx';
 
-const LEGACY_DEFAULT_SHEET_ID = '2PACX-1vTVqi_S5C8i3grKwYGFhzDk18kv9Drzzt73enXdNVuIhF8eINeAaSEJyV0frxJ8Bw';
+const LEGACY_DEFAULT_SHEET_IDS = [
+  '2PACX-1vTVqi_S5C8i3grKwYGFhzDk18kv9Drzzt73enXdNVuIhF8eINeAaSEJyV0frxJ8Bw',
+  '2PACX-1vQB-L3Tzyt1IA9t8Ifmjp4z1QVSIvkToguAcoTipw0SZ-WaZp2g5c3dCyWxQQKB95mFQQPYkrRFlrm3',
+];
 
 /**
  * Normalizes Google Sheets URLs to direct CSV export format.
@@ -89,9 +92,15 @@ export function normalizeSheetsUrl(rawUrl: string): string {
   }
 
   // 2. Google Sheets /pub without output=csv
-  if (url.includes('/pub') && !url.includes('output=csv')) {
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}output=csv`;
+  if (url.includes('/pub')) {
+    if (url.includes('output=xlsx')) {
+      return url.replace('output=xlsx', 'output=csv');
+    }
+    if (!url.includes('output=csv')) {
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}output=csv`;
+    }
+    return url;
   }
 
   // 3. Standard Google Sheet /edit link (Sharing link)
@@ -117,7 +126,7 @@ export function getEffectiveCloudSyncUrl(explicitUrl?: string): string {
   try {
     const local = localStorage.getItem(STORAGE_KEY_SHEETS_URL);
     if (local && local.trim()) {
-      if (local.includes(LEGACY_DEFAULT_SHEET_ID)) {
+      if (LEGACY_DEFAULT_SHEET_IDS.some((legacyId) => local.includes(legacyId))) {
         localStorage.setItem(STORAGE_KEY_SHEETS_URL, DEFAULT_SHEETS_CSV_URL);
         return DEFAULT_SHEETS_CSV_URL;
       }
@@ -127,7 +136,8 @@ export function getEffectiveCloudSyncUrl(explicitUrl?: string): string {
     // LocalStorage unavailable
   }
 
-  const envUrl = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_SHEETS_CSV_URL;
+  const env = (import.meta as unknown as { env?: Record<string, string> }).env;
+  const envUrl = env?.VITE_SHEETS_CSV_URL;
   if (envUrl && envUrl.trim()) {
     return normalizeSheetsUrl(envUrl);
   }
@@ -167,8 +177,8 @@ export function getEffectiveAbsenceCloudSyncUrl(explicitUrl?: string): string {
     // LocalStorage unavailable
   }
 
-  const envUrl = (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.VITE_SHEETS_AUSENTISMO_CSV_URL;
+  const env = (import.meta as unknown as { env?: Record<string, string> }).env;
+  const envUrl = env?.VITE_SHEETS_AUSENTISMO_CSV_URL;
   if (envUrl && envUrl.trim()) {
     return normalizeSheetsUrl(envUrl);
   }
@@ -248,10 +258,7 @@ export function getEffectiveMatrizCloudSyncUrl(explicitUrl?: string): string {
   }
 
   const env = (import.meta as unknown as { env?: Record<string, string> }).env;
-  const envUrl =
-    env?.VITE_SHEETS_REGISTRO_PROLONGACION_URL ||
-    env?.VITE_SHEETS_MATRIZ_URL ||
-    env?.VITE_REGISTRO_PROLONGACION_URL;
+  const envUrl = env?.VITE_SHEETS_REGISTRO_PROLONGACION_URL;
 
   if (envUrl && envUrl.trim()) {
     return normalizeMatrizSheetsUrl(envUrl);
@@ -1318,7 +1325,25 @@ export async function fetchRemoteCSVText(
     );
   }
 
-  const csvText = await response.text();
+  let csvText: string;
+  if (typeof response.arrayBuffer === 'function') {
+    const buffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    if (bytes.length > 4 && bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 0x03 && bytes[3] === 0x04) {
+      const workbook = XLSX.read(buffer, { type: 'array', cellDates: true, raw: false });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+        throw new Error('El archivo Excel no contiene hojas de cálculo legibles.');
+      }
+      const worksheet = workbook.Sheets[sheetName];
+      csvText = XLSX.utils.sheet_to_csv(worksheet);
+    } else {
+      const decoder = new TextDecoder('utf-8');
+      csvText = decoder.decode(buffer);
+    }
+  } else {
+    csvText = await response.text();
+  }
 
   // Guard against HTML error pages returned with 200 OK
   if (csvText.trim().startsWith('<!DOCTYPE html') || csvText.trim().startsWith('<html')) {

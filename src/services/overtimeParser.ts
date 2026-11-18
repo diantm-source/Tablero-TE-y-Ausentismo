@@ -240,11 +240,34 @@ export function evaluateTrafficLight(totalHoras: number): TrafficLightStatus {
   return 'VERDE';
 }
 
+export function isSystemOrInvalidLeader(leader: string): boolean {
+  if (!leader) return true;
+  const norm = leader.toLowerCase().trim();
+  return (
+    norm === '' ||
+    norm === '-' ||
+    norm === 'null' ||
+    norm === 'undefined' ||
+    norm === 'sin líder asignado' ||
+    norm === 'sin lider asignado' ||
+    norm === 'sin líder' ||
+    norm === 'sin lider' ||
+    norm === 'sin asignar' ||
+    norm === 'sin asignar lider' ||
+    norm === 'sin asignar líder' ||
+    norm === 'jtzompan' ||
+    norm.includes('jtzompan') ||
+    norm === 'admin' ||
+    norm === 'sistema' ||
+    norm === 'system'
+  );
+}
+
 /**
  * Estandariza y unifica nombres de departamentos oficiales:
- * - "PTA TRAT A RESIDUAL" y "AGUA RESIDUAL" corresponden a la misma área operativa
- *   y se unifican obligatoriamente bajo el nombre canónico oficial "PTA TRAT A RESIDUAL".
- * - "GENERADOR VAPOR(CALDE" y variantes de caldera/generador de vapor.
+ * - Conserva la relación real de los 16 departamentos de Base TE.
+ * - "AGUA RESIDUAL" y "PTA TRAT A RESIDUAL" se mantienen como áreas diferenciadas de Base TE.
+ * - "GENERADOR VAPOR(CALDE" y variantes de caldera/generador de vapor se unifican.
  * - "MANTENIMIENTO TLAX PQ" y variantes.
  */
 export function canonicalizeDepartment(raw: unknown): string {
@@ -260,32 +283,61 @@ export function canonicalizeDepartment(raw: unknown): string {
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Regla Oficial: "PTA TRAT A RESIDUAL" y "AGUA RESIDUAL" son la misma área
+  // Generador de vapor / caldera
   if (
-    norm.includes('AGUA RESIDUAL') ||
-    norm.includes('AGUAS RESIDUALES') ||
+    norm.includes('GENERADOR VAPOR') ||
+    norm.includes('GENERADOR DE VAPOR') ||
+    norm.includes('CALDERA') ||
+    norm.replace(/\s+/g, '').includes('GENERADORVAPOR')
+  ) {
+    return 'GENERADOR VAPOR(CALDE';
+  }
+
+  // Mantenimiento
+  if (norm.includes('MANTENIMIENTO TLAX')) {
+    return 'MANTENIMIENTO TLAX PQ';
+  }
+
+  // Tratamiento de blanqueo Planta 7A
+  if (norm.includes('TRAT BLANQUEO') || norm.includes('BLANQUEO')) {
+    return 'TRAT BLANQUEO PTA 7A';
+  }
+
+  // Almacenes
+  if (norm.includes('ALMACEN TLAX') || norm.includes('ALMACENES TLAX')) {
+    return 'ALMACENES TLAX PQ';
+  }
+
+  // Seguridad
+  if (norm.includes('SEGURIDAD TLAX')) {
+    return 'SEGURIDAD TLAX PQ';
+  }
+
+  // Servicios Generales
+  if (norm.includes('SERV GRALES') || norm.includes('SERVICIOS GENERALES')) {
+    return 'SERV GRALES TLAX PQ';
+  }
+
+  // Planta Piloto
+  if (norm.includes('PLANTA PILOTO') || norm.includes('PTA PILOTO')) {
+    return 'PLANTA PILOTO PQ';
+  }
+
+  // Agua Residual vs Planta Tratamiento Agua Residual
+  // Ambos son departamentos válidos de Base TE
+  if (norm === 'AGUA RESIDUAL' || norm === 'AGUAS RESIDUALES') {
+    return 'AGUA RESIDUAL';
+  }
+
+  if (
     norm.includes('PTA TRAT A RESIDUAL') ||
     norm.includes('PTA TRAT AGUA') ||
     norm.includes('PTA TRAT RESIDUAL') ||
-    norm.includes('TRATAMIENTO DE AGUA') ||
-    norm.includes('TRATAMIENTO AGUA') ||
     norm.includes('PLANTA DE TRATAMIENTO') ||
     norm.includes('PLANTA TRATAMIENTO') ||
     norm === 'PTA TRAT'
   ) {
     return 'PTA TRAT A RESIDUAL';
-  }
-
-  if (
-    norm.includes('GENERADOR VAPOR') ||
-    norm.includes('GENERADOR DE VAPOR') ||
-    norm.includes('CALDERA')
-  ) {
-    return 'GENERADOR VAPOR(CALDE';
-  }
-
-  if (norm.includes('MANTENIMIENTO TLAX')) {
-    return 'MANTENIMIENTO TLAX PQ';
   }
 
   return str;
@@ -344,14 +396,7 @@ export function buildLatestDepartmentLeaderMap(
     const rawLeader = (r.leader || (r as any)['Líder de área'] || (r as any).liderArea || '').trim();
 
     if (!rawDept || !rawLeader) continue;
-    if (
-      rawLeader === 'Sin Líder Asignado' ||
-      rawLeader === 'Sin Líder' ||
-      rawLeader === '-' ||
-      rawLeader === 'Sin Asignar' ||
-      rawLeader === 'Sin Asignar Lider' ||
-      rawLeader.toLowerCase() === rawDept.toLowerCase()
-    ) {
+    if (isSystemOrInvalidLeader(rawLeader) || rawLeader.toLowerCase() === rawDept.toLowerCase()) {
       continue;
     }
 

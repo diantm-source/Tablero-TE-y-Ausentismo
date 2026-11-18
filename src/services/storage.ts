@@ -33,8 +33,14 @@ import {
   INITIAL_LEADERS,
   OFFICIAL_REASONS_CATALOG,
   PrecalculatedCatalogs,
+  FAKE_LEADER_NAMES,
+  FAKE_DEPARTMENTS,
 } from './db';
 import { BackupPayload } from '../schemas';
+import { canonicalizeDepartment, normalizeDeptKey } from './overtimeParser';
+
+export const STORAGE_KEY_DELETED_DEPTS = 'pcat_deleted_departments';
+export const STORAGE_KEY_CUSTOM_LEADER_OVERRIDES = 'pcat_custom_leader_overrides';
 
 export {
   CLOUD_BATCH_ID,
@@ -139,13 +145,155 @@ export class AppStorage {
     });
   }
 
+  static getDeletedDepartments(): string[] {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_DELETED_DEPTS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // LocalStorage unavailable
+    }
+    return [];
+  }
+
+  static async saveDeletedDepartments(depts: string[]): Promise<void> {
+    try {
+      localStorage.setItem(STORAGE_KEY_DELETED_DEPTS, JSON.stringify(depts));
+    } catch {
+      // LocalStorage unavailable
+    }
+    await db.dashboardConfig.put({
+      key: 'deletedDepartments',
+      value: depts,
+      updatedAt: new Date().toISOString(),
+    });
+    await db.dashboardConfig.delete('precalculated_catalogs');
+  }
+
+  static getCustomLeaderOverrides(): Record<string, Partial<DepartmentLeader>> {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_LEADER_OVERRIDES);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch {
+      // LocalStorage unavailable
+    }
+    return {};
+  }
+
+  static async saveCustomLeaderOverrides(
+    overrides: Record<string, Partial<DepartmentLeader>>
+  ): Promise<void> {
+    try {
+      localStorage.setItem(STORAGE_KEY_CUSTOM_LEADER_OVERRIDES, JSON.stringify(overrides));
+    } catch {
+      // LocalStorage unavailable
+    }
+    await db.dashboardConfig.put({
+      key: 'customLeaderOverrides',
+      value: overrides,
+      updatedAt: new Date().toISOString(),
+    });
+    await db.dashboardConfig.delete('precalculated_catalogs');
+  }
+
   static async getDepartmentLeaders(): Promise<DepartmentLeader[]> {
     const list = await db.leaders.toArray();
-    if (list.length === 0) {
-      await db.leaders.bulkAdd(INITIAL_LEADERS);
-      return INITIAL_LEADERS;
+    const deletedList = this.getDeletedDepartments();
+    const deletedKeys = new Set(deletedList.map((d) => normalizeDeptKey(d)));
+    const overrides = this.getCustomLeaderOverrides();
+
+    // 1. Purge any legacy fake seed entries
+    const fakeIds: string[] = [];
+    for (const l of list) {
+      const lName = (l.leaderName || '').toLowerCase().trim();
+      const dKey = normalizeDeptKey(l.department);
+      if (
+        FAKE_LEADER_NAMES.has(lName) ||
+        FAKE_DEPARTMENTS.has(dKey) ||
+        dKey === 'produccion' ||
+        dKey === 'mantenimiento' ||
+        dKey === 'almacen'
+      ) {
+        fakeIds.push(l.id);
+      }
     }
-    return list;
+    if (fakeIds.length > 0) {
+      await db.leaders.bulkDelete(fakeIds);
+    }
+
+    const currentList = await db.leaders.toArray();
+
+    // If completely empty, populate with INITIAL_LEADERS (excluding any deleted)
+    if (currentList.length === 0) {
+      const toAdd = INITIAL_LEADERS.filter(
+        (l) => !deletedKeys.has(normalizeDeptKey(l.department))
+      );
+      if (toAdd.length > 0) {
+        await db.leaders.bulkAdd(toAdd);
+      }
+      return toAdd;
+    }
+
+    // Ensure all 16 initial leaders exist if they weren't deleted
+    const existingDeptKeys = new Set(currentList.map((l) => normalizeDeptKey(l.department)));
+    const missingInitial: DepartmentLeader[] = [];
+    for (const initL of INITIAL_LEADERS) {
+      const initKey = normalizeDeptKey(initL.department);
+      if (!existingDeptKeys.has(initKey) && !deletedKeys.has(initKey)) {
+        missingInitial.push(initL);
+      }
+    }
+    if (missingInitial.length > 0) {
+      await db.leaders.bulkAdd(missingInitial);
+      currentList.push(...missingInitial);
+    }
+
+    // Filter out deleted and apply overrides
+    const result: DepartmentLeader[] = [];
+    for (const item of currentList) {
+      const deptKey = normalizeDeptKey(item.department);
+      if (deletedKeys.has(deptKey)) continue;
+
+      const override = overrides[deptKey] || overrides[item.department];
+      if (override) {
+        result.push({
+          ...item,
+          ...override,
+          department: override.department || item.department,
+          leaderName: override.leaderName || item.leaderName,
+          leaderPosition: override.leaderPosition || item.leaderPosition,
+        });
+      } else {
+        result.push(item);
+      }
+    }
+
+    // Include any custom department added in overrides that is not in currentList and not deleted
+    for (const [key, ov] of Object.entries(overrides)) {
+      const normKey = normalizeDeptKey(key);
+      if (
+        !deletedKeys.has(normKey) &&
+        !result.some((r) => normalizeDeptKey(r.department) === normKey)
+      ) {
+        result.push({
+          id: ov.id || `lead-custom-${normKey}`,
+          company: ov.company || 'Polaquimia',
+          department: ov.department || key,
+          leaderName: ov.leaderName || 'Sin Líder Asignado',
+          leaderPosition: ov.leaderPosition || 'Responsable de Área',
+          validFrom: ov.validFrom || new Date().toISOString().slice(0, 10),
+        });
+      }
+    }
+
+    return result.sort((a, b) =>
+      a.department.localeCompare(b.department, 'es', { sensitivity: 'base' })
+    );
   }
 
   static async saveDepartmentLeaders(leaders: DepartmentLeader[]): Promise<void> {
@@ -153,6 +301,126 @@ export class AppStorage {
       await db.leaders.clear();
       await db.leaders.bulkAdd(leaders);
     });
+    await db.dashboardConfig.delete('precalculated_catalogs');
+  }
+
+  static async addDepartmentLeader(newLeader: DepartmentLeader): Promise<void> {
+    const canonicalDept = canonicalizeDepartment(newLeader.department);
+    const deptKey = normalizeDeptKey(canonicalDept);
+
+    const leaderToAdd: DepartmentLeader = {
+      ...newLeader,
+      id: newLeader.id || `lead-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      department: canonicalDept,
+      leaderName: newLeader.leaderName.trim(),
+      leaderPosition: newLeader.leaderPosition?.trim() || 'Responsable de Área',
+      company: newLeader.company?.trim() || 'Polaquimia',
+      validFrom: newLeader.validFrom || new Date().toISOString().slice(0, 10),
+    };
+
+    // Remove from deletedDepartments if it was previously deleted
+    const deleted = this.getDeletedDepartments();
+    const updatedDeleted = deleted.filter(
+      (d) => normalizeDeptKey(d) !== deptKey && normalizeDeptKey(canonicalDept) !== normalizeDeptKey(d)
+    );
+    await this.saveDeletedDepartments(updatedDeleted);
+
+    // Add to customLeaderOverrides
+    const overrides = this.getCustomLeaderOverrides();
+    overrides[deptKey] = leaderToAdd;
+    await this.saveCustomLeaderOverrides(overrides);
+
+    // Save into Dexie db.leaders
+    await db.transaction('rw', db.leaders, async () => {
+      const existing = await db.leaders
+        .filter((l) => normalizeDeptKey(l.department) === deptKey)
+        .first();
+      if (existing) {
+        await db.leaders.put({ ...existing, ...leaderToAdd, id: existing.id });
+      } else {
+        await db.leaders.put(leaderToAdd);
+      }
+    });
+
+    await db.dashboardConfig.delete('precalculated_catalogs');
+  }
+
+  static async updateDepartmentLeader(
+    originalDepartment: string,
+    updated: DepartmentLeader
+  ): Promise<void> {
+    const originalDeptKey = normalizeDeptKey(originalDepartment);
+    const canonicalDept = canonicalizeDepartment(updated.department);
+    const newDeptKey = normalizeDeptKey(canonicalDept);
+
+    const leaderToSave: DepartmentLeader = {
+      ...updated,
+      department: canonicalDept,
+      leaderName: updated.leaderName.trim(),
+      leaderPosition: updated.leaderPosition?.trim() || 'Responsable de Área',
+      company: updated.company?.trim() || 'Polaquimia',
+      validFrom: updated.validFrom || new Date().toISOString().slice(0, 10),
+    };
+
+    // Update overrides
+    const overrides = this.getCustomLeaderOverrides();
+    if (originalDeptKey !== newDeptKey) {
+      delete overrides[originalDeptKey];
+    }
+    overrides[newDeptKey] = leaderToSave;
+    await this.saveCustomLeaderOverrides(overrides);
+
+    // If department was renamed, ensure it's not in deletedDepartments
+    const deleted = this.getDeletedDepartments();
+    const updatedDeleted = deleted.filter((d) => normalizeDeptKey(d) !== newDeptKey);
+    await this.saveDeletedDepartments(updatedDeleted);
+
+    // Save into Dexie db.leaders
+    await db.transaction('rw', db.leaders, async () => {
+      const existing = await db.leaders
+        .filter((l) => normalizeDeptKey(l.department) === originalDeptKey)
+        .first();
+      if (existing) {
+        await db.leaders.delete(existing.id);
+      }
+      await db.leaders.put(leaderToSave);
+    });
+
+    await db.dashboardConfig.delete('precalculated_catalogs');
+  }
+
+  static async deleteDepartmentLeader(department: string): Promise<void> {
+    const canonicalDept = canonicalizeDepartment(department);
+    const deptKey = normalizeDeptKey(canonicalDept);
+
+    // 1. Add to deletedDepartments
+    const deleted = this.getDeletedDepartments();
+    if (!deleted.some((d) => normalizeDeptKey(d) === deptKey)) {
+      deleted.push(canonicalDept);
+      await this.saveDeletedDepartments(deleted);
+    }
+
+    // 2. Remove from customLeaderOverrides
+    const overrides = this.getCustomLeaderOverrides();
+    delete overrides[deptKey];
+    delete overrides[canonicalDept];
+    await this.saveCustomLeaderOverrides(overrides);
+
+    // 3. Remove from db.leaders
+    await db.transaction('rw', db.leaders, async () => {
+      const toDelete = await db.leaders
+        .filter(
+          (l) =>
+            normalizeDeptKey(l.department) === deptKey ||
+            normalizeDeptKey(l.department) === normalizeDeptKey(department)
+        )
+        .primaryKeys();
+      if (toDelete.length > 0) {
+        await db.leaders.bulkDelete(toDelete);
+      }
+    });
+
+    await db.dashboardConfig.delete('precalculated_catalogs');
   }
 
   static async getReasonsCatalog(): Promise<ReasonCatalogItem[]> {

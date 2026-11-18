@@ -56,10 +56,12 @@ function buildPrecalculatedCatalogs(
   att: import('./types').AttendanceRecord[],
   annualOt: AnnualOvertimeRecord[],
   matriz: WeeklyMatrixRecord[],
-  absences: AbsenceRecord[]
+  absences: AbsenceRecord[],
+  activeLeadersCatalog?: DepartmentLeader[],
+  deletedDepts?: string[]
 ): PrecalculatedCatalogs {
   const baseSource = annualOt.length > 0 ? annualOt : ot;
-  const rawCatalog = extractBaseTeLeaderCatalog(baseSource);
+  const rawCatalog = extractBaseTeLeaderCatalog(baseSource, activeLeadersCatalog, deletedDepts);
 
   const leaderToDepartments: Record<string, string[]> = {};
   rawCatalog.leaderToDepartments.forEach((depts, leader) => {
@@ -259,7 +261,9 @@ export default function App() {
           updatedAtt,
           updatedAnnualOt,
           enrichedMatriz,
-          updatedAbsences
+          updatedAbsences,
+          leaders,
+          AppStorage.getDeletedDepartments()
         );
         setCachedCatalogs(calculated);
         AppStorage.savePrecalculatedCatalogs(calculated).catch((err) =>
@@ -370,8 +374,8 @@ export default function App() {
       };
     }
     const baseSource = annualOvertimeRecords.length > 0 ? annualOvertimeRecords : overtimeRecords;
-    return extractBaseTeLeaderCatalog(baseSource);
-  }, [cachedCatalogs, annualOvertimeRecords, overtimeRecords]);
+    return extractBaseTeLeaderCatalog(baseSource, departmentLeaders, AppStorage.getDeletedDepartments());
+  }, [cachedCatalogs, annualOvertimeRecords, overtimeRecords, departmentLeaders]);
 
   // Lista única y ordenada alfabéticamente de Líderes de Área
   const availableLeaders = useMemo(() => {
@@ -489,12 +493,22 @@ export default function App() {
     handleResetFilters();
   };
 
-  const handleSaveLeader = async (updated: DepartmentLeader) => {
-    const cur = await AppStorage.getDepartmentLeaders();
-    const map = new Map(cur.map((l) => [l.department.toLowerCase(), l]));
-    map.set(updated.department.toLowerCase(), updated);
-    const list = Array.from(map.values());
-    await AppStorage.saveDepartmentLeaders(list);
+  const handleSaveLeader = async (updated: DepartmentLeader, originalDepartment?: string) => {
+    if (originalDepartment && originalDepartment !== updated.department) {
+      await AppStorage.updateDepartmentLeader(originalDepartment, updated);
+    } else {
+      await AppStorage.addDepartmentLeader(updated);
+    }
+    await reloadData();
+  };
+
+  const handleDeleteLeader = async (department: string) => {
+    await AppStorage.deleteDepartmentLeader(department);
+    await reloadData();
+  };
+
+  const handleCreateLeader = async (newLeader: DepartmentLeader) => {
+    await AppStorage.addDepartmentLeader(newLeader);
     await reloadData();
   };
 
@@ -637,6 +651,8 @@ export default function App() {
                 kpis={kpis}
                 leadersCatalog={departmentLeaders}
                 onSaveLeader={handleSaveLeader}
+                onDeleteLeader={handleDeleteLeader}
+                onCreateLeader={handleCreateLeader}
                 thresholds={thresholds}
               />
             )}
@@ -674,6 +690,9 @@ export default function App() {
                 onSaveReasons={handleSaveReasons}
                 leadersCatalog={departmentLeaders}
                 onSaveLeaders={setDepartmentLeaders}
+                onSaveLeader={handleSaveLeader}
+                onDeleteLeader={handleDeleteLeader}
+                onCreateLeader={handleCreateLeader}
                 thresholds={thresholds}
                 onSaveThresholds={handleSaveThresholds}
                 onRefreshData={reloadData}

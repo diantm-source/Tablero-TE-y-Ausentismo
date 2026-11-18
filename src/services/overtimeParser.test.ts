@@ -829,20 +829,17 @@ describe('Overtime Parser & Traffic Light Logic', () => {
   });
 
   describe('Unificación de Áreas y Actualización Dinámica de Líderes', () => {
-    it('unifica variantes de "AGUA RESIDUAL" bajo el departamento canónico "PTA TRAT A RESIDUAL"', () => {
+    it('unifica variantes de "GENERADOR VAPOR" bajo el departamento canónico "GENERADOR VAPOR(CALDE"', () => {
       const variants = [
-        'AGUA RESIDUAL',
-        'AGUAS RESIDUALES',
-        'PTA TRAT A RESIDUAL',
-        'PTA. TRAT. AGUA RESIDUAL',
-        'PLANTA DE TRATAMIENTO DE AGUA RESIDUAL',
-        'PLANTA TRATAMIENTO AGUAS RESIDUALES',
-        'PTA TRAT RESIDUAL',
+        'GENERADOR VAPOR(CALDE',
+        'GENERADORVAPOR(CALDE',
+        'GENERADOR DE VAPOR',
+        'CALDERA',
       ];
 
       variants.forEach((v) => {
-        expect(canonicalizeDepartment(v)).toBe('PTA TRAT A RESIDUAL');
-        expect(normalizeDeptKey(v)).toBe(normalizeDeptKey('PTA TRAT A RESIDUAL'));
+        expect(canonicalizeDepartment(v)).toBe('GENERADOR VAPOR(CALDE');
+        expect(normalizeDeptKey(v)).toBe(normalizeDeptKey('GENERADOR VAPOR(CALDE'));
       });
     });
 
@@ -850,7 +847,7 @@ describe('Overtime Parser & Traffic Light Logic', () => {
       const records = [
         // Semana 40: Líder antiguo
         {
-          department: 'AGUA RESIDUAL',
+          department: 'GENERADORVAPOR(CALDE',
           leader: 'Ing. Lider Antiguo',
           weekNumber: 40,
           isoYear: 2026,
@@ -858,7 +855,7 @@ describe('Overtime Parser & Traffic Light Logic', () => {
         },
         // Semana 44: Nuevo líder asignado a la misma área
         {
-          department: 'PTA TRAT A RESIDUAL',
+          department: 'GENERADOR VAPOR(CALDE',
           leader: 'Lic. Lider Nuevo',
           weekNumber: 44,
           isoYear: 2026,
@@ -867,17 +864,17 @@ describe('Overtime Parser & Traffic Light Logic', () => {
       ];
 
       const leaderMap = buildLatestDepartmentLeaderMap(records);
-      const canonicalKey = normalizeDeptKey('PTA TRAT A RESIDUAL');
+      const canonicalKey = normalizeDeptKey('GENERADOR VAPOR(CALDE');
 
       expect(leaderMap.get(canonicalKey)).toBe('Lic. Lider Nuevo');
 
       // Actualizar todos los registros: los registros antiguos deben quedar actualizados con el nuevo líder
       const updated = updateRecordsWithLatestLeaders(records, leaderMap);
 
-      expect(updated[0].department).toBe('PTA TRAT A RESIDUAL');
+      expect(updated[0].department).toBe('GENERADOR VAPOR(CALDE');
       expect(updated[0].leader).toBe('Lic. Lider Nuevo');
 
-      expect(updated[1].department).toBe('PTA TRAT A RESIDUAL');
+      expect(updated[1].department).toBe('GENERADOR VAPOR(CALDE');
       expect(updated[1].leader).toBe('Lic. Lider Nuevo');
     });
 
@@ -885,14 +882,14 @@ describe('Overtime Parser & Traffic Light Logic', () => {
       const baseTeRecords = [
         {
           employeeId: '5001',
-          department: 'AGUA RESIDUAL',
+          department: 'GENERADORVAPOR(CALDE',
           leader: 'Ing. Lider Antiguo',
           weekNumber: 38,
           isoYear: 2026,
         },
         {
           employeeId: '5002',
-          department: 'PTA TRAT A RESIDUAL',
+          department: 'GENERADOR VAPOR(CALDE',
           leader: 'Lic. Lider Nuevo',
           weekNumber: 45,
           isoYear: 2026,
@@ -902,22 +899,22 @@ describe('Overtime Parser & Traffic Light Logic', () => {
       const matrixRows = [
         {
           employeeId: '5001',
-          department: 'AGUA RESIDUAL',
+          department: 'GENERADORVAPOR(CALDE',
           leader: 'Ing. Lider Antiguo',
         },
         {
           employeeId: '5003',
-          department: 'PTA TRAT A RESIDUAL',
+          department: 'GENERADOR VAPOR(CALDE',
           leader: 'Sin Asignar',
         },
       ];
 
       const enriched = enrichMatrixWithLeaders(matrixRows, baseTeRecords);
 
-      expect(enriched[0].department).toBe('PTA TRAT A RESIDUAL');
+      expect(enriched[0].department).toBe('GENERADOR VAPOR(CALDE');
       expect(enriched[0].leader).toBe('Lic. Lider Nuevo');
 
-      expect(enriched[1].department).toBe('PTA TRAT A RESIDUAL');
+      expect(enriched[1].department).toBe('GENERADOR VAPOR(CALDE');
       expect(enriched[1].leader).toBe('Lic. Lider Nuevo');
     });
   });

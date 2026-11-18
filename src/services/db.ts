@@ -216,66 +216,163 @@ export const INITIAL_COMPANIES: CompanyEntity[] = [
   { id: 'EXTERNOS', name: 'Externos', isAttendanceEligible: false, isActive: true },
 ];
 
+export const FAKE_LEADER_NAMES = new Set([
+  'ing. roberto saldaña',
+  'ing. roberto saldana',
+  'roberto saldaña',
+  'roberto saldana',
+  'ing. sofía morales',
+  'ing. sofia morales',
+  'sofía morales',
+  'sofia morales',
+  'lic. fernando cruz',
+  'fernando cruz',
+  'qfb. patricia mendoza',
+  'patricia mendoza',
+  'ing. alejandro vega',
+  'alejandro vega',
+  'dr. mario ruiz',
+  'mario ruiz',
+  'jtzompan',
+]);
+
+export const FAKE_DEPARTMENTS = new Set([
+  'produccion',
+  'producción',
+  'control de calidad',
+  'seguridad e higiene',
+  'investigacion y desarrollo',
+  'investigación y desarrollo',
+]);
+
 export const INITIAL_LEADERS: DepartmentLeader[] = [
   {
     id: 'lead-1',
     company: 'Polaquimia',
-    department: 'Producción',
-    leaderName: 'Ing. Roberto Saldaña',
-    leaderPosition: 'Gerente de Planta',
-    leaderEmployeeId: 'EMP-010',
-    validFrom: '2023-01-01',
-    employeeCount: 42,
+    department: 'AGUA RESIDUAL',
+    leaderName: 'Beatriz Trejo',
+    leaderPosition: 'Responsable de Área',
+    validFrom: '2024-01-01',
   },
   {
     id: 'lead-2',
     company: 'Polaquimia',
-    department: 'Mantenimiento',
-    leaderName: 'Ing. Sofía Morales',
-    leaderPosition: 'Jefa de Mantenimiento',
-    leaderEmployeeId: 'EMP-018',
-    validFrom: '2023-01-01',
-    employeeCount: 18,
+    department: 'ALMACENES TLAX PQ',
+    leaderName: 'Imelda Diaz',
+    leaderPosition: 'Responsable de Área',
+    validFrom: '2024-01-01',
   },
   {
     id: 'lead-3',
     company: 'Polaquimia',
-    department: 'Almacén',
-    leaderName: 'Lic. Fernando Cruz',
-    leaderPosition: 'Jefe de Logística y Almacén',
-    leaderEmployeeId: 'EMP-025',
-    validFrom: '2023-03-15',
-    employeeCount: 15,
+    department: 'GENERADOR VAPOR(CALDE',
+    leaderName: 'Fidel Mendoza',
+    leaderPosition: 'Responsable de Área',
+    validFrom: '2024-01-01',
   },
   {
     id: 'lead-4',
-    company: 'Polatecnia',
-    department: 'Control de Calidad',
-    leaderName: 'QFB. Patricia Mendoza',
-    leaderPosition: 'Coordinadora de Calidad',
-    leaderEmployeeId: 'EMP-032',
-    validFrom: '2023-02-01',
-    employeeCount: 12,
+    company: 'Polaquimia',
+    department: 'MANTENIMIENTO TLAX PQ',
+    leaderName: 'Fidel Mendoza',
+    leaderPosition: 'Responsable de Área',
+    validFrom: '2024-01-01',
   },
   {
     id: 'lead-5',
     company: 'Polaquimia',
-    department: 'Seguridad e Higiene',
-    leaderName: 'Ing. Alejandro Vega',
-    leaderPosition: 'Supervisor EHS',
-    leaderEmployeeId: 'EMP-040',
-    validFrom: '2023-05-01',
-    employeeCount: 8,
+    department: 'PLANTA 3 PQ',
+    leaderName: 'Septimio Corona',
+    leaderPosition: 'Responsable de Área',
+    validFrom: '2024-01-01',
   },
   {
     id: 'lead-6',
-    company: 'Becarios',
-    department: 'Investigación y Desarrollo',
-    leaderName: 'Dr. Mario Ruiz',
-    leaderPosition: 'Líder I+D',
-    leaderEmployeeId: 'EMP-055',
-    validFrom: '2023-01-01',
-    employeeCount: 6,
+    company: 'Polaquimia',
+    department: 'PLANTA 4 PQ',
+    leaderName: 'Septimio Corona',
+    leaderPosition: 'Responsable de Área',
+    validFrom: '2024-01-01',
+  },
+  {
+    id: 'lead-7',
+    company: 'Polaquimia',
+    department: 'PLANTA 5 PQ',
+    leaderName: 'Armando Hernandez',
+    leaderPosition: 'Responsable de Área',
+    validFrom: '2024-01-01',
+  },
+  {
+    id: 'lead-8',
+    company: 'Polaquimia',
+    department: 'PLANTA 6 PQ',
+    leaderName: 'Septimio Corona',
+    leaderPosition: 'Responsable de Área',
+    validFrom: '2024-01-01',
+  },
+  {
+    id: 'lead-9',
+    company: 'Polaquimia',
+    department: 'PLANTA 7 PQ',
+    leaderName: 'Carlos Romero',
+    leaderPosition: 'Responsable de Área',
+    validFrom: '2024-01-01',
+  },
+  {
+    id: 'lead-10',
+    company: 'Polaquimia',
+    department: 'PLANTA 8 PQ',
+    leaderName: 'Carlos Romero',
+    leaderPosition: 'Responsable de Área',
+    validFrom: '2024-01-01',
+  },
+  {
+    id: 'lead-11',
+    company: 'Polaquimia',
+    department: 'PLANTA 9 PQ',
+    leaderName: 'Isaac Turrubiates',
+    leaderPosition: 'Responsable de Área',
+    validFrom: '2024-01-01',
+  },
+  {
+    id: 'lead-12',
+    company: 'Polaquimia',
+    department: 'PLANTA PILOTO PQ',
+    leaderName: 'Deysi Cruz',
+    leaderPosition: 'Responsable de Área',
+    validFrom: '2024-01-01',
+  },
+  {
+    id: 'lead-13',
+    company: 'Polaquimia',
+    department: 'PTA TRAT A RESIDUAL',
+    leaderName: 'Beatriz Trejo',
+    leaderPosition: 'Responsable de Área',
+    validFrom: '2024-01-01',
+  },
+  {
+    id: 'lead-14',
+    company: 'Polaquimia',
+    department: 'SEGURIDAD TLAX PQ',
+    leaderName: 'Pedro Calderon',
+    leaderPosition: 'Responsable de Área',
+    validFrom: '2024-01-01',
+  },
+  {
+    id: 'lead-15',
+    company: 'Polaquimia',
+    department: 'SERV GRALES TLAX PQ',
+    leaderName: 'Pedro Calderon',
+    leaderPosition: 'Responsable de Área',
+    validFrom: '2024-01-01',
+  },
+  {
+    id: 'lead-16',
+    company: 'Polaquimia',
+    department: 'TRAT BLANQUEO PTA 7A',
+    leaderName: 'Carlos Romero',
+    leaderPosition: 'Responsable de Área',
+    validFrom: '2024-01-01',
   },
 ];
 
@@ -461,7 +558,20 @@ export async function initDatabaseWithSeed(): Promise<void> {
     await db.companies.bulkAdd(INITIAL_COMPANIES);
   }
 
-  // 2. Initialize leaders if empty
+  // 2. Initialize leaders if empty or purge any legacy fake leaders
+  const currentLeaders = await db.leaders.toArray();
+  const fakeIds = currentLeaders
+    .filter(
+      (l) =>
+        FAKE_LEADER_NAMES.has((l.leaderName || '').toLowerCase().trim()) ||
+        FAKE_DEPARTMENTS.has(normalizeDeptKey(l.department))
+    )
+    .map((l) => l.id);
+
+  if (fakeIds.length > 0) {
+    await db.leaders.bulkDelete(fakeIds);
+  }
+
   const leaderCount = await db.leaders.count();
   if (leaderCount === 0) {
     await db.leaders.bulkAdd(INITIAL_LEADERS);

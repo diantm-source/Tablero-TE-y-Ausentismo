@@ -534,19 +534,19 @@ describe('kpiEngine Company Presets & Filtering', () => {
     expect(emp2.approvedHours).toBe(13);
   });
 
-  it('unifica PTA TRAT A RESIDUAL y AGUA RESIDUAL y actualiza al nuevo líder del área', () => {
+  it('unifica GENERADORVAPOR(CALDE y GENERADOR VAPOR(CALDE y actualiza al nuevo líder del área', () => {
     const records = [
-      // Semana 38: Registrado como AGUA RESIDUAL con líder antiguo
+      // Semana 38: Registrado como GENERADORVAPOR(CALDE con líder antiguo
       {
-        department: 'AGUA RESIDUAL',
+        department: 'GENERADORVAPOR(CALDE',
         leader: 'Ing. Lider Antiguo',
         weekNumber: 38,
         isoYear: 2026,
         fecha: '2026-09-18',
       },
-      // Semana 44: Registrado como PTA TRAT A RESIDUAL con nuevo líder
+      // Semana 44: Registrado como GENERADOR VAPOR(CALDE con nuevo líder
       {
-        department: 'PTA TRAT A RESIDUAL',
+        department: 'GENERADOR VAPOR(CALDE',
         leader: 'Ing. Lider Nuevo',
         weekNumber: 44,
         isoYear: 2026,
@@ -556,8 +556,8 @@ describe('kpiEngine Company Presets & Filtering', () => {
 
     const catalog = extractBaseTeLeaderCatalog(records);
 
-    // Debe existir un único departamento canónico: PTA TRAT A RESIDUAL
-    expect(catalog.departmentsList).toEqual(['PTA TRAT A RESIDUAL']);
+    // Debe existir un único departamento canónico: GENERADOR VAPOR(CALDE
+    expect(catalog.departmentsList).toEqual(['GENERADOR VAPOR(CALDE']);
 
     // La lista de líderes debe incluir únicamente al líder activo y actualizado
     expect(catalog.leadersList).toEqual(['Ing. Lider Nuevo']);
@@ -565,7 +565,7 @@ describe('kpiEngine Company Presets & Filtering', () => {
     // El departamento debe estar asignado única y exclusivamente al nuevo líder
     const nuevoDepts = catalog.leaderToDepartments.get('Ing. Lider Nuevo');
     expect(nuevoDepts).toBeDefined();
-    expect(Array.from(nuevoDepts!)).toEqual(['PTA TRAT A RESIDUAL']);
+    expect(Array.from(nuevoDepts!)).toEqual(['GENERADOR VAPOR(CALDE']);
 
     // El líder antiguo no debe tener asignado este departamento
     const antiguoDepts = catalog.leaderToDepartments.get('Ing. Lider Antiguo');
@@ -573,13 +573,13 @@ describe('kpiEngine Company Presets & Filtering', () => {
 
     // Verificación de alcance de filtro (isRecordInLeaderScope)
     expect(
-      isRecordInLeaderScope({ department: 'AGUA RESIDUAL' }, ['Ing. Lider Nuevo'], catalog.leaderToDepartments)
+      isRecordInLeaderScope({ department: 'GENERADORVAPOR(CALDE' }, ['Ing. Lider Nuevo'], catalog.leaderToDepartments)
     ).toBe(true);
     expect(
-      isRecordInLeaderScope({ department: 'PTA TRAT A RESIDUAL' }, ['Ing. Lider Nuevo'], catalog.leaderToDepartments)
+      isRecordInLeaderScope({ department: 'GENERADOR VAPOR(CALDE' }, ['Ing. Lider Nuevo'], catalog.leaderToDepartments)
     ).toBe(true);
     expect(
-      isRecordInLeaderScope({ department: 'PTA TRAT A RESIDUAL' }, ['Ing. Lider Antiguo'], catalog.leaderToDepartments)
+      isRecordInLeaderScope({ department: 'GENERADOR VAPOR(CALDE' }, ['Ing. Lider Antiguo'], catalog.leaderToDepartments)
     ).toBe(false);
   });
 });
