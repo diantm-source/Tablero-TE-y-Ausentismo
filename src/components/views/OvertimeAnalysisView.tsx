@@ -1091,65 +1091,6 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
       {/* Sub-view 3: Dashboard de Métricas y Gráficos */}
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
-          {/* Overtime Metric Summary Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-                Solicitudes Totales
-              </span>
-              <span className="text-2xl font-bold text-slate-900">{kpis.totalOtRequests}</span>
-              <span className="text-[11px] text-slate-400 block mt-1">
-                {kpis.collaboratorsWithOtCount} colaboradores
-              </span>
-            </div>
-
-            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-                Aprobadas
-              </span>
-              <span className="text-2xl font-bold text-emerald-600">{kpis.approvedOtRequests}</span>
-              <span className="text-[11px] text-emerald-700 block mt-1 font-medium">
-                {kpis.approvalRateByRequests}% tasa solic.
-              </span>
-            </div>
-
-            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-                Pendientes
-              </span>
-              <span className="text-2xl font-bold text-amber-600">{kpis.pendingOtRequests}</span>
-              <span className="text-[11px] text-amber-700 block mt-1 font-medium">
-                {kpis.totalPendingHours} hrs pendientes
-              </span>
-            </div>
-
-            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-                Rechazadas
-              </span>
-              <span className="text-2xl font-bold text-rose-600">{kpis.rejectedOtRequests}</span>
-              <span className="text-[11px] text-slate-400 block mt-1">Rechazadas en BioTime</span>
-            </div>
-
-            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-                Horas Solicitadas
-              </span>
-              <span className="text-2xl font-bold text-slate-900">{kpis.totalRequestedHours}</span>
-              <span className="text-[11px] text-slate-500 block mt-1">Volumen bruto</span>
-            </div>
-
-            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-                Horas Aprobadas
-              </span>
-              <span className="text-2xl font-bold text-emerald-600">{kpis.totalApprovedHours}</span>
-              <span className="text-[11px] text-emerald-700 block mt-1 font-medium">
-                {kpis.approvalRateByHours}% tasa horas
-              </span>
-            </div>
-          </div>
-
           {/* Requerimiento 3.A: Tarjeta Destacada Top Colaborador de la Selección y Líder a Cargo */}
           {topCollaborator ? (
             <div className="bg-gradient-to-r from-amber-50 via-white to-orange-50 rounded-2xl border-2 border-amber-300/80 p-5 shadow-sm relative overflow-hidden">
