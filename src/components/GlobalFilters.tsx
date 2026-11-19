@@ -16,7 +16,8 @@ interface GlobalFiltersProps {
   filteredCounts?: { ot: number; att: number };
   totalRecordsCount?: { ot: number; att: number };
   isCollapsed: boolean;
-  onToggleCollapsed: () => void;
+  onToggleCollapse?: () => void;
+  onToggleCollapsed?: () => void;
   hideCollapseButton?: boolean;
   leaderToDeptMap?: Map<string, Set<string>>;
 }
@@ -33,10 +34,12 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
   filteredCounts,
   totalRecordsCount,
   isCollapsed,
+  onToggleCollapse,
   onToggleCollapsed,
   hideCollapseButton = false,
   leaderToDeptMap,
 }) => {
+  const handleToggle = onToggleCollapse || onToggleCollapsed || (() => {});
   const [localSearchTerm, setLocalSearchTerm] = React.useState(filters.searchTerm);
 
   // Sincronizar el estado local cuando filters.searchTerm cambie externamente (ej. restablecer)
@@ -63,7 +66,7 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
       }`}
     >
       {/* Header bar of Filters */}
-      <div className="p-3.5 border-b border-slate-800 flex items-center justify-between">
+      <div className={`border-b border-slate-800 flex items-center ${isCollapsed ? 'p-2 justify-center' : 'p-3.5 justify-between'}`}>
         {!isCollapsed && (
           <div className="flex items-center gap-2">
             <i className="bi bi-funnel-fill text-blue-400 text-sm"></i>
@@ -74,9 +77,10 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
         )}
         {!hideCollapseButton && (
           <button
-            onClick={onToggleCollapsed}
+            type="button"
+            onClick={handleToggle}
             title={isCollapsed ? 'Expandir panel de filtros' : 'Ocultar panel de filtros'}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 mx-auto cursor-pointer transition-colors"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer transition-colors"
           >
             <i
               className={`bi ${
@@ -88,15 +92,17 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
       </div>
 
       {isCollapsed ? (
-        <div className="py-4 flex flex-col items-center gap-4 text-slate-400">
+        <div className="py-4 flex flex-col items-center gap-3 text-slate-400">
           <button
-            onClick={onToggleCollapsed}
-            title="Abrir filtros"
-            className="p-2 hover:bg-slate-800 hover:text-white rounded-xl transition-colors cursor-pointer"
+            type="button"
+            onClick={handleToggle}
+            title="Expandir filtros"
+            className="p-2 hover:bg-slate-800 hover:text-white rounded-xl transition-colors cursor-pointer text-blue-400 hover:text-blue-300"
           >
             <i className="bi bi-funnel text-base"></i>
           </button>
           <button
+            type="button"
             onClick={onResetFilters}
             title="Restablecer filtros"
             className="p-2 hover:bg-slate-800 hover:text-amber-400 rounded-xl transition-colors cursor-pointer"
