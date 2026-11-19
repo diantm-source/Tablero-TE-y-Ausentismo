@@ -15,8 +15,6 @@ import { OvertimeTrafficLightTable } from '../OvertimeTrafficLightTable';
 import { OvertimeGeneralView } from './OvertimeGeneralView';
 import { ColumnDef } from '@tanstack/react-table';
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   PieChart,
@@ -43,6 +41,55 @@ interface OvertimeAnalysisViewProps {
   leaderToDeptMap?: Map<string, Set<string>>;
 }
 
+interface CustomLeaderTooltipProps {
+  active?: boolean;
+  payload?: any[];
+}
+
+const CustomLeaderTooltip: React.FC<CustomLeaderTooltipProps> = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-slate-900/95 text-white p-3.5 rounded-xl shadow-xl border border-slate-700 max-w-xs text-xs space-y-2 z-50">
+        <div className="font-bold text-sm text-blue-300 flex items-center gap-1.5 border-b border-slate-700/80 pb-1.5">
+          <i className="bi bi-person-badge-fill text-blue-400"></i>
+          <span>{data.leader}</span>
+        </div>
+        <div className="flex items-center justify-between text-slate-300">
+          <span className="text-slate-400">Horas Totales:</span>
+          <span className="font-bold text-emerald-400 font-mono text-sm">
+            {Number(data.hours).toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} hrs
+          </span>
+        </div>
+        <div className="flex items-center justify-between text-slate-300">
+          <span className="text-slate-400">Participación:</span>
+          <span className="font-bold text-blue-400 font-mono">
+            {data.percentage}%
+          </span>
+        </div>
+        {data.departments && data.departments.length > 0 && (
+          <div className="pt-1.5 border-t border-slate-800 text-[11px]">
+            <span className="text-slate-400 block mb-1 font-semibold">
+              Áreas Asignadas ({data.departments.length}):
+            </span>
+            <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
+              {data.departments.map((d: string, idx: number) => (
+                <span
+                  key={idx}
+                  className="bg-slate-800 text-slate-200 px-2 py-0.5 rounded text-[10px] border border-slate-700"
+                >
+                  {d}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+  return null;
+};
+
 export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
   kpis,
   allOvertime,
@@ -55,7 +102,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
   leaderToDeptMap,
 }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'trafficLight' | 'dashboard' | 'pending'>('general');
-  const [trendMode, setTrendMode] = useState<'weekly' | 'daily'>('weekly');
+  const [timeAggMode, setTimeAggMode] = useState<'M' | 'S'>('M');
   const [deptChartType, setDeptChartType] = useState<'bar' | 'pie'>('bar');
   const [dayChartType, setDayChartType] = useState<'bar' | 'pie'>('bar');
   const [shiftChartType, setShiftChartType] = useState<'bar' | 'pie'>('bar');
@@ -125,8 +172,8 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
         filters.weeks && filters.weeks.length > 0
           ? filters.weeks
           : filters.isoWeek && filters.isoWeek !== 'ALL'
-          ? [filters.isoWeek]
-          : [];
+            ? [filters.isoWeek]
+            : [];
       if (selectedWeeks.length > 0 && !selectedWeeks.includes('ALL')) {
         const recWeekKey = `${rec.isoYear}-W${String(rec.weekNumber).padStart(2, '0')}`;
         const recShortWeek = rec.week ? rec.week.toUpperCase() : '';
@@ -146,8 +193,8 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
         filters.months && filters.months.length > 0
           ? filters.months
           : filters.month && filters.month !== 'ALL'
-          ? [filters.month]
-          : [];
+            ? [filters.month]
+            : [];
       if (selectedMonths.length > 0 && !selectedMonths.includes('ALL')) {
         const recMonthKey =
           rec.fecha && /^\d{4}-\d{2}/.test(rec.fecha)
@@ -164,6 +211,15 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
         if (!matchesMonth) return false;
       }
 
+      // Rango Personalizado de Fechas (startDate / endDate / specificDate)
+      const recDate = rec.fecha || (rec as any).dateOnly || (rec as any).date;
+      if (recDate && typeof recDate === 'string') {
+        const cleanDate = recDate.trim().slice(0, 10);
+        if (filters.specificDate && cleanDate !== filters.specificDate) return false;
+        if (filters.startDate && cleanDate < filters.startDate) return false;
+        if (filters.endDate && cleanDate > filters.endDate) return false;
+      }
+
       // Búsqueda rápida
       if (filters.searchTerm) {
         const term = filters.searchTerm.toLowerCase();
@@ -172,13 +228,15 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
           rec.employeeName.toLowerCase().includes(term) ||
           (rec.sapId && rec.sapId.toLowerCase().includes(term)) ||
           rec.department.toLowerCase().includes(term) ||
+          (rec.liderArea && rec.liderArea.toLowerCase().includes(term)) ||
+          (rec.leader && rec.leader.toLowerCase().includes(term)) ||
           rec.week.toLowerCase().includes(term);
         if (!match) return false;
       }
 
       return true;
     });
-  }, [sourceMatrixRecords, filters]);
+  }, [sourceMatrixRecords, filters, leaderToDeptMap]);
 
   // Totales filtrados reactivos
   const summaryKPIs = useMemo(() => {
@@ -334,7 +392,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
     return { data: sorted, grandTotal: Math.round(grandTotal * 10) / 10 };
   }, [filteredMatrixRecords]);
 
-  // Gráfica 2: Distribución por Día de la Semana
+  // Gráfica 3: Distribución por Día de la Semana
   const dailyDistributionData = useMemo(() => {
     const DAY_NAMES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
     const DAY_COLORS = ['#3b82f6', '#06b6d4', '#10b981', '#eab308', '#f97316', '#8b5cf6', '#ec4899'];
@@ -465,6 +523,247 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
     };
   }, [filteredMatrixRecords]);
 
+  // Gráfica 1: Concentrado Mensual (M)
+  const monthlyData = useMemo(() => {
+    const MONTH_NAMES = [
+      'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+      'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+    ];
+    const monthSums = new Array(12).fill(0);
+    let grandTotal = 0;
+    let hasAnyData = false;
+
+    for (const r of filteredMatrixRecords) {
+      const hTot = r.horasTotales !== undefined ? r.horasTotales : (r.hours || 0);
+      if (hTot <= 0) continue;
+
+      let mIdx = -1;
+      if (r.monthNumber && r.monthNumber >= 1 && r.monthNumber <= 12) {
+        mIdx = r.monthNumber - 1;
+      } else if (r.fecha && /^\d{4}-\d{2}/.test(r.fecha)) {
+        mIdx = parseInt(r.fecha.slice(5, 7), 10) - 1;
+      } else if ((r as any).dateOnly && /^\d{4}-\d{2}/.test((r as any).dateOnly)) {
+        mIdx = parseInt((r as any).dateOnly.slice(5, 7), 10) - 1;
+      }
+
+      if (mIdx >= 0 && mIdx < 12) {
+        monthSums[mIdx] += hTot;
+        grandTotal += hTot;
+        hasAnyData = true;
+      }
+    }
+
+    if (!hasAnyData && kpis.filteredOvertime && kpis.filteredOvertime.length > 0) {
+      for (const r of kpis.filteredOvertime) {
+        const h = r.hours || 0;
+        if (h <= 0) continue;
+        let mIdx = -1;
+        if (r.dateOnly && /^\d{4}-\d{2}/.test(r.dateOnly)) {
+          mIdx = parseInt(r.dateOnly.slice(5, 7), 10) - 1;
+        }
+        if (mIdx >= 0 && mIdx < 12) {
+          monthSums[mIdx] += h;
+          grandTotal += h;
+          hasAnyData = true;
+        }
+      }
+    }
+
+    const roundedGrandTotal = Math.round(grandTotal * 10) / 10;
+    const data: { label: string; hours: number; percentage: number }[] = [];
+    for (let idx = 0; idx < 12; idx++) {
+      if (monthSums[idx] > 0) {
+        const h = Math.round(monthSums[idx] * 10) / 10;
+        const pct = roundedGrandTotal > 0 ? Number(((h / roundedGrandTotal) * 100).toFixed(1)) : 0;
+        data.push({
+          label: MONTH_NAMES[idx],
+          hours: h,
+          percentage: pct,
+        });
+      }
+    }
+
+    return { data, grandTotal: roundedGrandTotal };
+  }, [filteredMatrixRecords, kpis.filteredOvertime]);
+
+  // Gráfica 1: Concentrado Semanal (S)
+  const weeklyData = useMemo(() => {
+    const weekMap = new Map<number, number>();
+    let grandTotal = 0;
+    let hasAnyData = false;
+
+    for (const r of filteredMatrixRecords) {
+      const hTot = r.horasTotales !== undefined ? r.horasTotales : (r.hours || 0);
+      if (hTot <= 0) continue;
+
+      let wNum: number | undefined = undefined;
+      if (r.weekNumber && r.weekNumber > 0 && r.weekNumber <= 53) {
+        wNum = r.weekNumber;
+      } else if (r.week) {
+        const match = r.week.match(/\d+/);
+        if (match) wNum = parseInt(match[0], 10);
+      } else if ((r as any).isoWeek) {
+        wNum = (r as any).isoWeek;
+      }
+
+      if (wNum !== undefined) {
+        weekMap.set(wNum, (weekMap.get(wNum) || 0) + hTot);
+        grandTotal += hTot;
+        hasAnyData = true;
+      }
+    }
+
+    if (!hasAnyData && kpis.filteredOvertime && kpis.filteredOvertime.length > 0) {
+      for (const r of kpis.filteredOvertime) {
+        const h = r.hours || 0;
+        if (h <= 0) continue;
+        if (r.isoWeek) {
+          weekMap.set(r.isoWeek, (weekMap.get(r.isoWeek) || 0) + h);
+          grandTotal += h;
+          hasAnyData = true;
+        }
+      }
+    }
+
+    const roundedGrandTotal = Math.round(grandTotal * 10) / 10;
+    const sortedWeeks = Array.from(weekMap.entries()).sort((a, b) => a[0] - b[0]);
+    const data = sortedWeeks.map(([wNum, h]) => {
+      const roundedH = Math.round(h * 10) / 10;
+      const pct = roundedGrandTotal > 0 ? Number(((roundedH / roundedGrandTotal) * 100).toFixed(1)) : 0;
+      return {
+        label: `Sem. ${String(wNum).padStart(2, '0')}`,
+        hours: roundedH,
+        percentage: pct,
+      };
+    });
+
+    return { data, grandTotal: roundedGrandTotal };
+  }, [filteredMatrixRecords, kpis.filteredOvertime]);
+
+  // Gráfica 5: Análisis de Tiempo Extra por Líder (sumando todas sus áreas asignadas)
+  const leaderOvertimeData = useMemo(() => {
+    const leaderHoursMap = new Map<string, number>();
+    const leaderDeptsMap = new Map<string, Set<string>>();
+    let grandTotal = 0;
+
+    const isInvalidLeaderName = (name: string): boolean => {
+      const norm = name.toUpperCase().trim();
+      if (!norm) return true;
+      if (
+        norm === 'SIN LÍDER ASIGNADO' ||
+        norm === 'SIN LIDER ASIGNADO' ||
+        norm === 'SIN ASIGNAR' ||
+        norm === 'SIN LÍDER' ||
+        norm === 'SIN LIDER' ||
+        norm === 'PLANTA 1 PQ' ||
+        norm === 'PLANTA 2 PQ' ||
+        norm === 'PLANTA 1' ||
+        norm === 'PLANTA 2' ||
+        norm === 'PLANTA'
+      ) {
+        return true;
+      }
+      return false;
+    };
+
+    const findCatalogLeaderForDept = (deptName?: string): string | null => {
+      if (!deptName || !leaderToDeptMap) return null;
+      const targetNorm = normalizeDeptKey(deptName);
+      for (const [leaderName, depts] of leaderToDeptMap.entries()) {
+        if (
+          depts.has(deptName.trim()) ||
+          Array.from(depts).some((d) => normalizeDeptKey(d) === targetNorm)
+        ) {
+          return leaderName;
+        }
+      }
+      return null;
+    };
+
+    const resolveLeader = (rec: any): string => {
+      const explicit = (rec.liderArea || rec.leader || '').trim();
+      if (explicit && leaderToDeptMap && leaderToDeptMap.has(explicit)) {
+        return explicit;
+      }
+      const fromDept = findCatalogLeaderForDept(rec.department);
+      if (fromDept) {
+        return fromDept;
+      }
+      if (explicit && !isInvalidLeaderName(explicit)) {
+        return explicit;
+      }
+      return 'Sin Líder Asignado';
+    };
+
+    for (const r of filteredMatrixRecords) {
+      const hTot = r.horasTotales !== undefined ? r.horasTotales : (r.hours || 0);
+      if (hTot <= 0) continue;
+
+      const leader = resolveLeader(r);
+      if (isInvalidLeaderName(leader)) continue;
+
+      leaderHoursMap.set(leader, (leaderHoursMap.get(leader) || 0) + hTot);
+      grandTotal += hTot;
+
+      if (!leaderDeptsMap.has(leader)) {
+        leaderDeptsMap.set(leader, new Set<string>());
+      }
+      if (r.department && r.department.trim()) {
+        leaderDeptsMap.get(leader)!.add(r.department.trim());
+      }
+    }
+
+    if (grandTotal === 0 && kpis.filteredOvertime && kpis.filteredOvertime.length > 0) {
+      for (const r of kpis.filteredOvertime) {
+        const h = r.hours || 0;
+        if (h <= 0) continue;
+        const leader = resolveLeader(r);
+        if (isInvalidLeaderName(leader)) continue;
+
+        leaderHoursMap.set(leader, (leaderHoursMap.get(leader) || 0) + h);
+        grandTotal += h;
+        if (!leaderDeptsMap.has(leader)) {
+          leaderDeptsMap.set(leader, new Set<string>());
+        }
+        if (r.department && r.department.trim()) {
+          leaderDeptsMap.get(leader)!.add(r.department.trim());
+        }
+      }
+    }
+
+    const roundedGrandTotal = Math.round(grandTotal * 10) / 10;
+
+    const data = Array.from(leaderHoursMap.entries())
+      .map(([leader, hours]) => {
+        const roundedH = Math.round(hours * 10) / 10;
+        const pct = roundedGrandTotal > 0 ? Number(((roundedH / roundedGrandTotal) * 100).toFixed(1)) : 0;
+        const deptsSet = new Set(leaderDeptsMap.get(leader) || []);
+        if (leaderToDeptMap && leaderToDeptMap.has(leader)) {
+          leaderToDeptMap.get(leader)!.forEach((d) => deptsSet.add(d));
+        }
+        return {
+          leader,
+          hours: roundedH,
+          percentage: pct,
+          departments: Array.from(deptsSet).filter(Boolean).sort(),
+        };
+      })
+      .filter((item) => {
+        if (item.hours <= 0) return false;
+        if (isInvalidLeaderName(item.leader)) return false;
+        if (leaderToDeptMap && leaderToDeptMap.size > 0 && !leaderToDeptMap.has(item.leader)) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => b.hours - a.hours);
+
+    return {
+      data,
+      grandTotal: roundedGrandTotal,
+    };
+  }, [filteredMatrixRecords, kpis.filteredOvertime, leaderToDeptMap]);
+
   const columns = useMemo<ColumnDef<OvertimeRecord>[]>(
     () => [
       {
@@ -543,9 +842,8 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
           const val = info.getValue() as string;
           return (
             <span
-              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                val === 'CORRECTO' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-              }`}
+              className={`px-2 py-0.5 rounded text-[10px] font-bold ${val === 'CORRECTO' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                }`}
             >
               {val}
             </span>
@@ -721,11 +1019,10 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('general')}
-          className={`whitespace-nowrap shrink-0 text-xs sm:text-sm px-3 py-2 font-bold rounded-lg transition-all flex items-center gap-2 ${
-            activeTab === 'general'
+          className={`whitespace-nowrap shrink-0 text-xs sm:text-sm px-3 py-2 font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab === 'general'
               ? 'bg-blue-600 text-white shadow-sm'
               : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
-          }`}
+            }`}
         >
           <span aria-hidden="true">🗂️</span>
           <span>General</span>
@@ -734,11 +1031,10 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('trafficLight')}
-          className={`whitespace-nowrap shrink-0 text-xs sm:text-sm px-3 py-2 font-bold rounded-lg transition-all flex items-center gap-2 ${
-            activeTab === 'trafficLight'
+          className={`whitespace-nowrap shrink-0 text-xs sm:text-sm px-3 py-2 font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab === 'trafficLight'
               ? 'bg-blue-600 text-white shadow-sm'
               : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
-          }`}
+            }`}
         >
           <span aria-hidden="true">🚦</span>
           <span>Semáforo Semanal</span>
@@ -747,11 +1043,10 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('dashboard')}
-          className={`whitespace-nowrap shrink-0 text-xs sm:text-sm px-3 py-2 font-bold rounded-lg transition-all flex items-center gap-2 ${
-            activeTab === 'dashboard'
+          className={`whitespace-nowrap shrink-0 text-xs sm:text-sm px-3 py-2 font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab === 'dashboard'
               ? 'bg-blue-600 text-white shadow-sm'
               : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
-          }`}
+            }`}
         >
           <span aria-hidden="true">📈</span>
           <span>Métricas y Tendencias Gráficas</span>
@@ -760,11 +1055,10 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('pending')}
-          className={`whitespace-nowrap shrink-0 text-xs sm:text-sm px-3 py-2 font-bold rounded-lg transition-all flex items-center gap-2 ${
-            activeTab === 'pending'
+          className={`whitespace-nowrap shrink-0 text-xs sm:text-sm px-3 py-2 font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab === 'pending'
               ? 'bg-blue-600 text-white shadow-sm'
               : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
-          }`}
+            }`}
         >
           <span aria-hidden="true">🕒</span>
           <span>Solicitudes Pendientes ({pendingRecords.length})</span>
@@ -926,10 +1220,10 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
             </div>
           )}
 
-          {/* Requerimiento 3.B: Gráficas Interactivas con Switch Barras / Pastel */}
+          {/* Bloque Superior: Gráfica 1 (Departamento) y Gráfica 2 (Turnos) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Gráfica 1: Horas Extra por Departamento */}
-            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -946,9 +1240,8 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setDeptChartType('bar')}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 ${
-                      deptChartType === 'bar' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 cursor-pointer ${deptChartType === 'bar' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
                   >
                     <span>📊</span>
                     <span>Barras</span>
@@ -956,9 +1249,8 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setDeptChartType('pie')}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 ${
-                      deptChartType === 'pie' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 cursor-pointer ${deptChartType === 'pie' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
                   >
                     <span>🥧</span>
                     <span>Pastel</span>
@@ -966,14 +1258,15 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                 </div>
               </div>
 
-              <div className="h-[230px] sm:h-[300px] lg:h-[340px] flex items-center justify-center w-full min-w-0">
+              <div className="h-72 w-full min-w-0 flex items-center justify-center">
                 {deptOvertimeData.data.length > 0 ? (
                   deptChartType === 'bar' ? (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
+                    <ResponsiveContainer minWidth={0} width="100%" height="100%">
                       <BarChart
                         data={deptOvertimeData.data.slice(0, 8)}
                         layout="vertical"
-                        margin={{ left: 10, right: 30, top: 10, bottom: 10 }}
+                        margin={{ left: 10, right: 40, top: 10, bottom: 10 }}
+                        barCategoryGap="12%"
                       >
                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                         <XAxis type="number" tick={{ fontSize: 11 }} unit=" h" />
@@ -985,13 +1278,13 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                           tickFormatter={(val) => (val.length > 16 ? `${val.slice(0, 14)}...` : val)}
                         />
                         <Tooltip
-                          formatter={(val: any, name: any, item: any) => [
+                          formatter={(val: any, _name: any, item: any) => [
                             `${val} hrs (${item.payload.percentage}%)`,
                             'Horas Extra',
                           ]}
                           labelFormatter={(l) => `Departamento: ${l}`}
                         />
-                        <Bar dataKey="hours" name="Horas" radius={[0, 4, 4, 0]}>
+                        <Bar dataKey="hours" name="Horas" barSize={22} radius={[0, 4, 4, 0]}>
                           <LabelList
                             dataKey="hours"
                             position="right"
@@ -1005,7 +1298,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
+                    <ResponsiveContainer minWidth={0} width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={deptOvertimeData.data.slice(0, 8)}
@@ -1056,8 +1349,8 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
               )}
             </div>
 
-            {/* Gráfica 3: Turnos con Mayor Solicitud de Tiempo Extra */}
-            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            {/* Gráfica 2: Turnos con Mayor Solicitud de Tiempo Extra */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -1074,9 +1367,8 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setShiftChartType('bar')}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 ${
-                      shiftChartType === 'bar' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 cursor-pointer ${shiftChartType === 'bar' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
                   >
                     <span>📊</span>
                     <span>Barras</span>
@@ -1084,9 +1376,8 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setShiftChartType('pie')}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 ${
-                      shiftChartType === 'pie' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 cursor-pointer ${shiftChartType === 'pie' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
                   >
                     <span>🥧</span>
                     <span>Pastel</span>
@@ -1094,22 +1385,22 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                 </div>
               </div>
 
-              <div className="h-[230px] sm:h-[300px] lg:h-[340px] flex items-center justify-center w-full min-w-0">
+              <div className="h-72 w-full min-w-0 flex items-center justify-center">
                 {shiftDistributionData.grandTotal > 0 ? (
                   shiftChartType === 'bar' ? (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
-                      <BarChart data={shiftDistributionData.data} margin={{ top: 25, right: 15, left: 0, bottom: 10 }}>
+                    <ResponsiveContainer minWidth={0} width="100%" height="100%">
+                      <BarChart data={shiftDistributionData.data} margin={{ top: 25, right: 15, left: 0, bottom: 10 }} barCategoryGap="10%">
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis dataKey="shortName" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} unit=" h" />
                         <Tooltip
-                          formatter={(val: any, name: any, item: any) => [
+                          formatter={(val: any, _name: any, item: any) => [
                             `${val} hrs (${item.payload.percentage}%)`,
                             item.payload.description ? `Horario: ${item.payload.description}` : 'Horas',
                           ]}
                           labelFormatter={(l) => `Turno: ${l}`}
                         />
-                        <Bar dataKey="hours" name="Horas" radius={[4, 4, 0, 0]}>
+                        <Bar dataKey="hours" name="Horas" maxBarSize={160} radius={[6, 6, 0, 0]}>
                           <LabelList
                             dataKey="hours"
                             position="top"
@@ -1123,7 +1414,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
+                    <ResponsiveContainer minWidth={0} width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={shiftDistributionData.data}
@@ -1168,27 +1459,26 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
             </div>
           </div>
 
-          {/* Gráfica 2: Distribución por Día de la Semana */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+          {/* Bloque Medio: Gráfica 3: Distribución por Día de la Semana */}
+          <div className="w-full bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
               <div>
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <span>Distribución por Día de la Semana</span>
-                  <span className="text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">
+                  <span className="text-xs font-mono bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full font-bold">
                     {dailyDistributionData.grandTotal.toFixed(1)} hrs tot.
                   </span>
                 </h3>
-                <p className="text-xs text-slate-500">
-                  Desglose diario (Lunes a Domingo) con fechas correspondientes, total de horas y porcentaje (%)
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Desglose diario (Lunes a Domingo) con total de horas y porcentaje (%)
                 </p>
               </div>
               <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 self-start sm:self-auto">
                 <button
                   type="button"
                   onClick={() => setDayChartType('bar')}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 ${
-                    dayChartType === 'bar' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 cursor-pointer ${dayChartType === 'bar' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
                 >
                   <span>📊</span>
                   <span>Barras</span>
@@ -1196,9 +1486,8 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setDayChartType('pie')}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 ${
-                    dayChartType === 'pie' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 cursor-pointer ${dayChartType === 'pie' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
                 >
                   <span>🥧</span>
                   <span>Pastel</span>
@@ -1206,11 +1495,11 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
               </div>
             </div>
 
-            <div className="h-[230px] sm:h-[300px] lg:h-[340px] flex items-center justify-center w-full min-w-0">
+            <div className="h-72 w-full min-w-0 flex items-center justify-center">
               {dailyDistributionData.grandTotal > 0 ? (
                 dayChartType === 'bar' ? (
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
-                    <BarChart data={dailyDistributionData.data} margin={{ top: 25, right: 15, left: 0, bottom: 10 }}>
+                  <ResponsiveContainer minWidth={0} width="100%" height="100%">
+                    <BarChart data={dailyDistributionData.data} margin={{ top: 25, right: 15, left: 0, bottom: 10 }} barCategoryGap="8%">
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis
                         dataKey="dayName"
@@ -1222,7 +1511,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                       />
                       <YAxis tick={{ fontSize: 11 }} unit=" h" />
                       <Tooltip
-                        formatter={(val: any, name: any, item: any) => [
+                        formatter={(val: any, _name: any, item: any) => [
                           `${val} hrs (${item.payload.percentage}%)`,
                           item.payload.date ? `Fecha: ${item.payload.date}` : 'Horas',
                         ]}
@@ -1231,7 +1520,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                           return item?.date ? `${l} — ${item.date}` : String(l);
                         }}
                       />
-                      <Bar dataKey="hours" name="Horas" radius={[4, 4, 0, 0]}>
+                      <Bar dataKey="hours" name="Horas" maxBarSize={150} radius={[6, 6, 0, 0]}>
                         <LabelList
                           dataKey="hours"
                           position="top"
@@ -1245,14 +1534,14 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
+                  <ResponsiveContainer minWidth={0} width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={dailyDistributionData.data.filter((d) => d.hours > 0)}
                         dataKey="hours"
                         nameKey="fullLabel"
-                        innerRadius={50}
-                        outerRadius={80}
+                        innerRadius={60}
+                        outerRadius={95}
                         paddingAngle={3}
                       >
                         {dailyDistributionData.data.filter((d) => d.hours > 0).map((entry, idx) => (
@@ -1275,7 +1564,7 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
             </div>
 
             {/* Días footer badges */}
-            <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-center text-xs">
+            <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-center text-xs">
               {dailyDistributionData.data.map((d, i) => (
                 <div key={i} className="p-2 rounded-lg bg-slate-50 border border-slate-100">
                   <div className="text-[10px] font-bold text-slate-500 uppercase truncate">
@@ -1291,237 +1580,228 @@ export const OvertimeAnalysisView: React.FC<OvertimeAnalysisViewProps> = ({
             </div>
           </div>
 
-      {/* Charts Grid 1: Daily Evolution & Status Donut */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Daily / Weekly Evolution Line */}
-        <div className="lg:col-span-2 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">
-                {trendMode === 'weekly' ? 'Evolución Semanal del Tiempo Extra' : 'Evolución Diaria del Tiempo Extra'}
-              </h3>
-              <p className="text-xs text-slate-500">
-                {trendMode === 'weekly'
-                  ? 'Horas solicitadas vs aprobadas por Semanas ISO 8601 (Lunes a Domingo)'
-                  : 'Horas solicitadas vs aprobadas por fecha real'}
-              </p>
+          {/* Bloque Inferior: Gráfica 4 (Horas por Mes / Semana) y Gráfica 5 (Líder) */}
+          {/* Gráfica 4: Concentrado Mensual / Semanal con Switch M | S */}
+          <div className="w-full bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-base font-bold text-slate-900 tracking-tight">
+                    {timeAggMode === 'M' ? 'Horas por Mes' : 'Horas por Semana'}
+                  </h3>
+                  <span className="text-xs font-mono bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-0.5 rounded-full font-bold">
+                    {(timeAggMode === 'M' ? monthlyData.grandTotal : weeklyData.grandTotal).toLocaleString('es-MX', {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })}{' '}
+                    hrs tot.
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  {timeAggMode === 'M'
+                    ? 'Total de horas extra acumuladas por mes en orden cronológico con desglose porcentual'
+                    : 'Total de horas extra acumuladas por semana en orden cronológico con desglose porcentual'}
+                </p>
+              </div>
+
+              {/* Selector Interactivo M | S */}
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 self-start sm:self-auto shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setTimeAggMode('M')}
+                  className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${timeAggMode === 'M'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  title="Vista Mensual (M)"
+                >
+                  M
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTimeAggMode('S')}
+                  className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${timeAggMode === 'S'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  title="Vista Semanal (S)"
+                >
+                  S
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-              <button
-                type="button"
-                onClick={() => setTrendMode('weekly')}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
-                  trendMode === 'weekly'
-                    ? 'bg-white text-blue-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Por Semana
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrendMode('daily')}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
-                  trendMode === 'daily'
-                    ? 'bg-white text-blue-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Por Día
-              </button>
-            </div>
-          </div>
-          <div className="h-[230px] sm:h-[300px] lg:h-[340px] w-full min-w-0">
-            {trendMode === 'weekly' ? (
-              kpis.weeklyMetrics.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
-                  <LineChart data={kpis.weeklyMetrics}>
+
+            <div className="h-80 w-full min-w-0 flex items-center justify-center">
+              {(timeAggMode === 'M' ? monthlyData.data.length : weeklyData.data.length) > 0 ? (
+                <ResponsiveContainer minWidth={0} width="100%" height="100%">
+                  <BarChart
+                    data={timeAggMode === 'M' ? monthlyData.data : weeklyData.data}
+                    margin={{ top: 30, right: 20, left: 10, bottom: 45 }}
+                    barCategoryGap="10%"
+                  >
+                    <defs>
+                      <linearGradient id="timeBarGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#2563eb" />
+                        <stop offset="100%" stopColor="#1d4ed8" />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis
-                      dataKey="isoKey"
-                      tick={{ fontSize: 11 }}
-                      tickFormatter={(val) => `Sem. ${String(val).split('-W')[1] || val}`}
-                    />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip
-                      labelFormatter={(label) => {
-                        const found = kpis.weeklyMetrics.find((m) => m.isoKey === label);
-                        return found?.weekLabel || String(label);
+                      dataKey="label"
+                      angle={-25}
+                      textAnchor="end"
+                      height={55}
+                      interval={0}
+                      tick={{
+                        fontSize: (timeAggMode === 'M' ? monthlyData.data.length : weeklyData.data.length) > 25 ? 9 : 11,
+                        fill: '#475569',
+                        fontWeight: 500,
                       }}
-                      formatter={(val: any, name: any) => [`${val} hrs`, name]}
                     />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Line
-                      type="monotone"
-                      dataKey="requestedHours"
-                      name="Horas Solicitadas"
-                      stroke="#3b82f6"
-                      strokeWidth={2.5}
-                      dot={{ r: 4 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="approvedHours"
-                      name="Horas Aprobadas"
-                      stroke="#10b981"
-                      strokeWidth={2.5}
-                      dot={{ r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-xs text-slate-400">
-                  Sin registros semanales en el rango seleccionado
-                </div>
-              )
-            ) : (
-              kpis.dailyMetrics.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
-                  <LineChart data={kpis.dailyMetrics}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} unit=" h" />
                     <Tooltip
-                      labelFormatter={(label) => `Fecha: ${label}`}
-                      formatter={(val: any, name: any) => [`${val} hrs`, name]}
+                      formatter={(val: any, _name: any, item: any) => [
+                        `${Number(val).toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} hrs (${item.payload.percentage}%)`,
+                        'Tiempo Extra',
+                      ]}
+                      labelFormatter={(label) => `${timeAggMode === 'M' ? 'Mes' : 'Semana'}: ${label}`}
+                      contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.75rem', color: '#f8fafc', fontSize: '12px' }}
+                      itemStyle={{ color: '#60a5fa' }}
                     />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Line
-                      type="monotone"
-                      dataKey="requestedHours"
-                      name="Horas Solicitadas"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="approvedHours"
-                      name="Horas Aprobadas"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                    />
-                  </LineChart>
+                    <Bar
+                      dataKey="hours"
+                      name="Horas Extra"
+                      fill="url(#timeBarGradient)"
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={140}
+                      minPointSize={26}
+                    >
+                      <LabelList
+                        dataKey="hours"
+                        position="top"
+                        formatter={(val: any) => {
+                          const num = Number(val);
+                          if (!num || num <= 0) return '';
+                          return num >= 1000
+                            ? num.toLocaleString('es-MX', { maximumFractionDigits: 1 })
+                            : `${num % 1 === 0 ? num : num.toFixed(1)} hrs`;
+                        }}
+                        style={{ fill: '#1e293b', fontSize: 11, fontWeight: 700 }}
+                      />
+                      <LabelList
+                        dataKey="percentage"
+                        position="center"
+                        formatter={(val: any) => {
+                          const num = Number(val);
+                          return num && num > 0 ? `${num.toFixed(1)}%` : '';
+                        }}
+                        style={{ fill: '#ffffff', fontSize: 11, fontWeight: 700 }}
+                      />
+                    </Bar>
+                  </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex items-center justify-center text-xs text-slate-400">
-                  Sin registros en el rango seleccionado
+                <div className="text-xs text-slate-400 py-12 text-center">
+                  No hay datos de tiempo extra registrados para el periodo seleccionado.
                 </div>
-              )
-            )}
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Status Distribution Donut */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col">
-          <h3 className="text-sm font-bold text-slate-900 mb-1">Distribución de Estados</h3>
-          <p className="text-xs text-slate-500 mb-2">Proporción de solicitudes registradas</p>
-          <div className="flex-1 flex items-center justify-center h-[230px] sm:h-[300px] lg:h-[340px] w-full min-w-0">
-            {kpis.statusDistribution.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
-                <PieChart>
-                  <Pie
-                    data={kpis.statusDistribution}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={55}
-                    outerRadius={80}
-                    paddingAngle={3}
+          {/* Gráfica 5: Análisis de Tiempo Extra por Líder (Incluyendo sus Áreas Asignadas) */}
+          <div className="w-full bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-base font-bold text-slate-900 tracking-tight">
+                    Análisis de Tiempo Extra por Líder
+                  </h3>
+                  <span className="text-xs font-mono bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-0.5 rounded-full font-bold">
+                    {leaderOvertimeData.grandTotal.toLocaleString('es-MX', {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })}{' '}
+                    hrs tot.
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Distribución de tiempo extra acumulado por Líder de Área sumando todas sus áreas asignadas, ordenado de mayor a menor volumen
+                </p>
+              </div>
+              <div className="text-xs text-slate-500 font-medium bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 self-start sm:self-auto">
+                <span className="text-slate-400">Líderes activos: </span>
+                <strong className="text-slate-800">{leaderOvertimeData.data.length}</strong>
+              </div>
+            </div>
+
+            <div className="h-80 w-full min-w-0 flex items-center justify-center">
+              {leaderOvertimeData.data.length > 0 ? (
+                <ResponsiveContainer minWidth={0} width="100%" height="100%">
+                  <BarChart
+                    data={leaderOvertimeData.data}
+                    margin={{ top: 30, right: 20, left: 10, bottom: 45 }}
+                    barCategoryGap="10%"
                   >
-                    {kpis.statusDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(val: any, name: any) => [`${val} solicitudes`, name]}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="text-xs text-slate-400">Sin datos de estados</div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Charts Grid 2: Horizontal Bar - Top Departments & Most Frequent Reasons */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Horizontal Bar: Top Departments */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-900 mb-1">
-            Departamentos con Mayor Volumen de Tiempo Extra
-          </h3>
-          <p className="text-xs text-slate-500 mb-4">Horas aprobadas acumuladas por área</p>
-          <div className="h-[230px] sm:h-[300px] lg:h-[340px] w-full min-w-0">
-            {kpis.departmentsMetrics.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
-                <BarChart
-                  data={kpis.departmentsMetrics.slice(0, 6)}
-                  layout="vertical"
-                  margin={{ left: 20, right: 35 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis dataKey="department" type="category" tick={{ fontSize: 10 }} width={90} />
-                  <Tooltip
-                    labelFormatter={(label) => `Departamento: ${label}`}
-                    formatter={(val: any, name: any) => [`${val} hrs`, name]}
-                  />
-                  <Bar dataKey="approvedHours" name="Horas Aprobadas" fill="#2563eb" radius={[0, 4, 4, 0]}>
-                    <LabelList
-                      dataKey="approvedHours"
-                      position="right"
-                      formatter={(val: any) => `${Number(val) % 1 === 0 ? Number(val) : Number(val).toFixed(1)} hrs`}
-                      style={{ fill: '#1e293b', fontSize: 10, fontWeight: 700 }}
+                    <defs>
+                      <linearGradient id="leaderBarGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#2563eb" />
+                        <stop offset="100%" stopColor="#1d4ed8" />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis
+                      dataKey="leader"
+                      angle={-25}
+                      textAnchor="end"
+                      height={55}
+                      interval={0}
+                      tick={{
+                        fontSize: leaderOvertimeData.data.length > 15 ? 9 : 11,
+                        fill: '#475569',
+                        fontWeight: 500,
+                      }}
                     />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-xs text-slate-400">
-                Sin datos departamentales
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Motivos más frecuentes */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col">
-          <h3 className="text-sm font-bold text-slate-900 mb-1">
-            Motivos de Tiempo Extra Más Frecuentes
-          </h3>
-          <p className="text-xs text-slate-500 mb-3">
-            Homologación y frecuencia de causas reportadas
-          </p>
-          <div className="flex-1 overflow-y-auto space-y-2.5 max-h-64 pr-1 text-xs">
-            {kpis.reasonsFrequency.length > 0 ? (
-              kpis.reasonsFrequency.map((r, i) => (
-                <div
-                  key={i}
-                  className="p-2.5 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-between"
-                >
-                  <div className="pr-2">
-                    <div className="font-semibold text-slate-800 line-clamp-1">{r.reason}</div>
-                    <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-medium">
-                      {r.category}
-                    </span>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="font-bold text-slate-900">{r.count} solicitudes</div>
-                    <div className="text-[11px] text-slate-500">{r.hours} hrs</div>
-                  </div>
+                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} unit=" h" />
+                    <Tooltip content={<CustomLeaderTooltip />} />
+                    <Bar
+                      dataKey="hours"
+                      name="Horas Extra"
+                      fill="url(#leaderBarGradient)"
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={140}
+                      minPointSize={26}
+                    >
+                      <LabelList
+                        dataKey="hours"
+                        position="top"
+                        formatter={(val: any) => {
+                          const num = Number(val);
+                          if (!num || num <= 0) return '';
+                          return num >= 1000
+                            ? num.toLocaleString('es-MX', { maximumFractionDigits: 1 })
+                            : `${num % 1 === 0 ? num : num.toFixed(1)} hrs`;
+                        }}
+                        style={{ fill: '#1e293b', fontSize: 11, fontWeight: 700 }}
+                      />
+                      <LabelList
+                        dataKey="percentage"
+                        position="center"
+                        formatter={(val: any) => {
+                          const num = Number(val);
+                          return num && num > 0 ? `${num.toFixed(1)}%` : '';
+                        }}
+                        style={{ fill: '#ffffff', fontSize: 11, fontWeight: 700 }}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-xs text-slate-400 py-12 text-center">
+                  No hay datos de tiempo extra registrados por líder con los filtros seleccionados.
                 </div>
-              ))
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-400">
-                Sin motivos registrados
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      </div>
         </div>
       )}
 

@@ -16,7 +16,8 @@ interface GlobalFiltersProps {
   filteredCounts?: { ot: number; att: number };
   totalRecordsCount?: { ot: number; att: number };
   isCollapsed: boolean;
-  onToggleCollapsed: () => void;
+  onToggleCollapse?: () => void;
+  onToggleCollapsed?: () => void;
   hideCollapseButton?: boolean;
   leaderToDeptMap?: Map<string, Set<string>>;
 }
@@ -33,10 +34,12 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
   filteredCounts,
   totalRecordsCount,
   isCollapsed,
+  onToggleCollapse,
   onToggleCollapsed,
   hideCollapseButton = false,
   leaderToDeptMap,
 }) => {
+  const handleToggle = onToggleCollapse || onToggleCollapsed || (() => { });
   const [localSearchTerm, setLocalSearchTerm] = React.useState(filters.searchTerm);
 
   // Sincronizar el estado local cuando filters.searchTerm cambie externamente (ej. restablecer)
@@ -54,16 +57,15 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
   }, [localSearchTerm, filters.searchTerm, onChangeFilters]);
   return (
     <div
-      className={`bg-slate-900/95 transition-all duration-300 flex flex-col shrink-0 text-slate-200 z-10 overflow-hidden ${
-        hideCollapseButton
+      className={`bg-slate-900/95 transition-all duration-300 flex flex-col shrink-0 text-slate-200 z-10 overflow-hidden ${hideCollapseButton
           ? 'w-full h-full'
           : isCollapsed
-          ? 'w-16 mt-0.5 mb-2.5 ml-2 mr-2 rounded-3xl border border-slate-800 shadow-sm'
-          : 'w-72 mt-0.5 mb-2.5 ml-2 mr-2 rounded-3xl border border-slate-800 shadow-sm'
-      }`}
+            ? 'w-16 mt-0.5 mb-2.5 ml-2 mr-2 rounded-3xl border border-slate-800 shadow-sm'
+            : 'w-72 mt-0.5 mb-2.5 ml-2 mr-2 rounded-3xl border border-slate-800 shadow-sm'
+        }`}
     >
       {/* Header bar of Filters */}
-      <div className={`p-3.5 border-b border-slate-800 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+      <div className={`border-b border-slate-800 flex items-center ${isCollapsed ? 'p-2 justify-center' : 'p-3.5 justify-between'}`}>
         {!isCollapsed && (
           <div className="flex items-center gap-2">
             <i className="bi bi-funnel-fill text-blue-400 text-sm"></i>
@@ -75,26 +77,25 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
         {!hideCollapseButton && (
           <button
             type="button"
-            onClick={onToggleCollapsed}
+            onClick={handleToggle}
             title={isCollapsed ? 'Expandir panel de filtros' : 'Ocultar panel de filtros'}
             className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer transition-colors"
           >
             <i
-              className={`bi ${
-                isCollapsed ? 'bi-chevron-double-right' : 'bi-chevron-double-left'
-              } text-xs`}
+              className={`bi ${isCollapsed ? 'bi-chevron-double-right' : 'bi-chevron-double-left'
+                } text-xs`}
             ></i>
           </button>
         )}
       </div>
 
       {isCollapsed ? (
-        <div className="py-4 flex flex-col items-center gap-4 text-slate-400">
+        <div className="py-4 flex flex-col items-center gap-3 text-slate-400">
           <button
             type="button"
-            onClick={onToggleCollapsed}
-            title="Expandir panel de filtros"
-            className="p-2.5 hover:bg-slate-800 hover:text-white rounded-xl transition-colors cursor-pointer flex items-center justify-center min-h-[42px] min-w-[42px]"
+            onClick={handleToggle}
+            title="Expandir filtros"
+            className="p-2 hover:bg-slate-800 hover:text-white rounded-xl transition-colors cursor-pointer text-blue-400 hover:text-blue-300"
           >
             <i className="bi bi-funnel text-base"></i>
           </button>
@@ -120,10 +121,10 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                   {filters.companyPreset === 'ALL'
                     ? 'Todas'
                     : filters.companyPreset === 'MAIN_THREE'
-                    ? '3 Principales'
-                    : filters.companyPreset === 'POLAQUIMIA_ONLY'
-                    ? 'Solo Polaquimia'
-                    : 'Personalizado'}
+                      ? '3 Principales'
+                      : filters.companyPreset === 'POLAQUIMIA_ONLY'
+                        ? 'Solo Polaquimia'
+                        : 'Personalizado'}
                 </span>
               </div>
               <div className="flex items-center justify-between font-mono text-[11px] pt-1 border-t border-slate-700/50">
@@ -156,11 +157,10 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                     companies: ['ALL'],
                   })
                 }
-                className={`text-left px-2 py-1.5 rounded-xl transition-colors flex items-center justify-between ${
-                  filters.companyPreset === 'ALL'
+                className={`text-left px-2 py-1.5 rounded-xl transition-colors flex items-center justify-between ${filters.companyPreset === 'ALL'
                     ? 'bg-blue-600 text-white font-medium'
                     : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300'
-                }`}
+                  }`}
               >
                 <div>
                   <span className="block font-medium">Todas las empresas</span>
@@ -177,11 +177,10 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                     companies: ['POLAQUIMIA', 'MLBM', 'BARTELEU'],
                   })
                 }
-                className={`text-left px-2 py-1.5 rounded-xl transition-colors flex items-center justify-between ${
-                  filters.companyPreset === 'MAIN_THREE'
+                className={`text-left px-2 py-1.5 rounded-xl transition-colors flex items-center justify-between ${filters.companyPreset === 'MAIN_THREE'
                     ? 'bg-blue-600 text-white font-medium'
                     : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300'
-                }`}
+                  }`}
               >
                 <span>Solo Polaquimia, MLBM y Barteleu</span>
                 {filters.companyPreset === 'MAIN_THREE' && <i className="bi bi-check2 text-xs"></i>}
@@ -195,11 +194,10 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                     companies: ['POLAQUIMIA'],
                   })
                 }
-                className={`text-left px-2 py-1.5 rounded-xl transition-colors flex items-center justify-between ${
-                  filters.companyPreset === 'POLAQUIMIA_ONLY'
+                className={`text-left px-2 py-1.5 rounded-xl transition-colors flex items-center justify-between ${filters.companyPreset === 'POLAQUIMIA_ONLY'
                     ? 'bg-blue-600 text-white font-medium'
                     : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300'
-                }`}
+                  }`}
               >
                 <span>Solamente Polaquimia</span>
                 {filters.companyPreset === 'POLAQUIMIA_ONLY' && <i className="bi bi-check2 text-xs"></i>}
@@ -215,31 +213,28 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
             <div className="grid grid-cols-3 gap-1">
               <button
                 onClick={() => onChangeFilters({ collaboratorType: 'ALL' })}
-                className={`py-1 px-1.5 rounded-xl text-center truncate ${
-                  filters.collaboratorType === 'ALL'
+                className={`py-1 px-1.5 rounded-xl text-center truncate ${filters.collaboratorType === 'ALL'
                     ? 'bg-blue-600 text-white font-bold'
                     : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                }`}
+                  }`}
               >
                 Ambos
               </button>
               <button
                 onClick={() => onChangeFilters({ collaboratorType: 'SINDICALIZADO' })}
-                className={`py-1 px-1.5 rounded-xl text-center truncate ${
-                  filters.collaboratorType === 'SINDICALIZADO'
+                className={`py-1 px-1.5 rounded-xl text-center truncate ${filters.collaboratorType === 'SINDICALIZADO'
                     ? 'bg-blue-600 text-white font-bold'
                     : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                }`}
+                  }`}
               >
                 Sindicalizado
               </button>
               <button
                 onClick={() => onChangeFilters({ collaboratorType: 'NO_SINDICALIZADO' })}
-                className={`py-1 px-1.5 rounded-xl text-center truncate ${
-                  filters.collaboratorType === 'NO_SINDICALIZADO'
+                className={`py-1 px-1.5 rounded-xl text-center truncate ${filters.collaboratorType === 'NO_SINDICALIZADO'
                     ? 'bg-blue-600 text-white font-bold'
                     : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                }`}
+                  }`}
               >
                 No Sind.
               </button>
@@ -274,10 +269,10 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                   filters.companyPreset === 'POLAQUIMIA_ONLY'
                     ? (availableCompanies.find((c) => c.toUpperCase() === 'POLAQUIMIA') || 'POLAQUIMIA')
                     : filters.companyPreset === 'MAIN_THREE'
-                    ? 'MAIN_THREE'
-                    : filters.companies.length === 1 && filters.companies[0] !== 'ALL'
-                    ? (availableCompanies.find((c) => c.toUpperCase() === filters.companies[0].toUpperCase()) || filters.companies[0])
-                    : 'ALL'
+                      ? 'MAIN_THREE'
+                      : filters.companies.length === 1 && filters.companies[0] !== 'ALL'
+                        ? (availableCompanies.find((c) => c.toUpperCase() === filters.companies[0].toUpperCase()) || filters.companies[0])
+                        : 'ALL'
                 }
                 onChange={(e) => {
                   const val = e.target.value;
@@ -379,8 +374,8 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                 filters.weeks && filters.weeks.length > 0
                   ? filters.weeks
                   : filters.isoWeek && filters.isoWeek !== 'ALL'
-                  ? [filters.isoWeek]
-                  : []
+                    ? [filters.isoWeek]
+                    : []
               }
               onChange={(newWeeks) =>
                 onChangeFilters({
@@ -406,8 +401,8 @@ export const GlobalFilters: React.FC<GlobalFiltersProps> = ({
                 filters.months && filters.months.length > 0
                   ? filters.months
                   : filters.month && filters.month !== 'ALL'
-                  ? [filters.month]
-                  : []
+                    ? [filters.month]
+                    : []
               }
               onChange={(newMonths) =>
                 onChangeFilters({

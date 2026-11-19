@@ -51,6 +51,49 @@ const ViewSkeleton = () => (
   </div>
 );
 
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+class ViewErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('View rendering error caught by ViewErrorBoundary:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 bg-white rounded-2xl border border-slate-200 shadow-sm text-center space-y-3 my-6">
+          <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto text-xl">
+            <i className="bi bi-exclamation-triangle-fill"></i>
+          </div>
+          <h3 className="text-base font-bold text-slate-800">Error al renderizar el módulo</h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            {this.state.error?.message || 'Ocurrió un error inesperado al ajustar el contenedor gráfico.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-xs cursor-pointer"
+          >
+            Reintentar vista
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function buildPrecalculatedCatalogs(
   ot: import('./types').OvertimeRecord[],
   att: import('./types').AttendanceRecord[],
@@ -586,7 +629,7 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <div className="flex-1 flex min-h-0 overflow-hidden relative">
+      <div className="flex-1 flex min-w-0 min-h-0 overflow-hidden relative">
         {/* Desktop Navigation Sidebar (Fijo y Estático) */}
         <div className="hidden lg:flex shrink-0 h-full">
           <Sidebar
@@ -620,6 +663,7 @@ export default function App() {
                 att: attendanceRecords.length,
               }}
               isCollapsed={filtersCollapsed}
+              onToggleCollapse={() => setFiltersCollapsed(!filtersCollapsed)}
               onToggleCollapsed={() => setFiltersCollapsed(!filtersCollapsed)}
               leaderToDeptMap={baseTeCatalog.leaderToDepartments}
             />
@@ -627,103 +671,105 @@ export default function App() {
         )}
 
         {/* Content Area (Scroll independiente únicamente en tablas y gráficas) */}
-        <main className="flex-1 min-w-0 overflow-y-auto p-2.5 sm:p-4 md:p-6 lg:p-8 space-y-4 sm:space-y-6">
-          <Suspense fallback={<ViewSkeleton />}>
-            {currentSection === 'executive' && (
-              <ExecutiveSummaryView
-                kpis={kpis}
-                thresholds={thresholds}
-                onNavigate={setCurrentSection}
-                annualOvertime={annualOvertimeRecords}
-                matrixRecords={weeklyMatrixRecords}
-                absenceRecords={absenceRecords}
-                allOvertime={overtimeRecords}
-                allAttendance={attendanceRecords}
-                filters={filters}
-                leaderToDeptMap={baseTeCatalog.leaderToDepartments}
-              />
-            )}
+        <main className="flex-1 min-w-0 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 space-y-6">
+          <ViewErrorBoundary>
+            <Suspense fallback={<ViewSkeleton />}>
+              {currentSection === 'executive' && (
+                <ExecutiveSummaryView
+                  kpis={kpis}
+                  thresholds={thresholds}
+                  onNavigate={setCurrentSection}
+                  annualOvertime={annualOvertimeRecords}
+                  matrixRecords={weeklyMatrixRecords}
+                  absenceRecords={absenceRecords}
+                  allOvertime={overtimeRecords}
+                  allAttendance={attendanceRecords}
+                  filters={filters}
+                  leaderToDeptMap={baseTeCatalog.leaderToDepartments}
+                />
+              )}
 
-            {currentSection === 'overtime' && (
-              <OvertimeAnalysisView
-                kpis={kpis}
-                allOvertime={overtimeRecords}
-                allAttendance={attendanceRecords}
-                annualOvertime={annualOvertimeRecords}
-                matrixRecords={weeklyMatrixRecords}
-                filters={filters}
-                isSyncing={isSyncing}
-                onSyncCloud={handleSyncCloud}
-                leaderToDeptMap={baseTeCatalog.leaderToDepartments}
-              />
-            )}
+              {currentSection === 'overtime' && (
+                <OvertimeAnalysisView
+                  kpis={kpis}
+                  allOvertime={overtimeRecords}
+                  allAttendance={attendanceRecords}
+                  annualOvertime={annualOvertimeRecords}
+                  matrixRecords={weeklyMatrixRecords}
+                  filters={filters}
+                  isSyncing={isSyncing}
+                  onSyncCloud={handleSyncCloud}
+                  leaderToDeptMap={baseTeCatalog.leaderToDepartments}
+                />
+              )}
 
-            {currentSection === 'attendance' && (
-              <AttendanceAnalysisView
-                kpis={kpis}
-                allAttendance={attendanceRecords}
-                allOvertime={overtimeRecords}
-                absenceRecords={absenceRecords}
-                filters={filters}
-                isSyncing={isSyncing}
-                onSyncCloud={handleSyncCloud}
-                leaderToDeptMap={baseTeCatalog.leaderToDepartments}
-              />
-            )}
+              {currentSection === 'attendance' && (
+                <AttendanceAnalysisView
+                  kpis={kpis}
+                  allAttendance={attendanceRecords}
+                  allOvertime={overtimeRecords}
+                  absenceRecords={absenceRecords}
+                  filters={filters}
+                  isSyncing={isSyncing}
+                  onSyncCloud={handleSyncCloud}
+                  leaderToDeptMap={baseTeCatalog.leaderToDepartments}
+                />
+              )}
 
-            {currentSection === 'departments' && (
-              <DepartmentsLeadersView
-                kpis={kpis}
-                leadersCatalog={departmentLeaders}
-                onSaveLeader={handleSaveLeader}
-                onDeleteLeader={handleDeleteLeader}
-                onCreateLeader={handleCreateLeader}
-                thresholds={thresholds}
-              />
-            )}
+              {currentSection === 'departments' && (
+                <DepartmentsLeadersView
+                  kpis={kpis}
+                  leadersCatalog={departmentLeaders}
+                  onSaveLeader={handleSaveLeader}
+                  onDeleteLeader={handleDeleteLeader}
+                  onCreateLeader={handleCreateLeader}
+                  thresholds={thresholds}
+                />
+              )}
 
-            {currentSection === 'audit' && (
-              <DataAuditView
-                incidents={auditIncidents}
-                onClearIncidents={handleClearIncidents}
-              />
-            )}
+              {currentSection === 'audit' && (
+                <DataAuditView
+                  incidents={auditIncidents}
+                  onClearIncidents={handleClearIncidents}
+                />
+              )}
 
-            {currentSection === 'import' && (
-              <FileImportView
-                reasonsCatalog={reasonsCatalog}
-                importHistory={importHistory}
-                onImportCompleted={() => {
-                  reloadData();
-                  setCurrentSection('executive');
-                }}
-                onClearDatabase={handleClearDatabase}
-                onDeleteBatch={handleDeleteBatch}
-                onUpdateBatch={handleUpdateBatch}
-                onClearDemoData={handleClearDemoData}
-                onRefreshData={reloadData}
-                totalRecords={{
-                  ot: overtimeRecords.length,
-                  att: attendanceRecords.length,
-                }}
-              />
-            )}
+              {currentSection === 'import' && (
+                <FileImportView
+                  reasonsCatalog={reasonsCatalog}
+                  importHistory={importHistory}
+                  onImportCompleted={() => {
+                    reloadData();
+                    setCurrentSection('executive');
+                  }}
+                  onClearDatabase={handleClearDatabase}
+                  onDeleteBatch={handleDeleteBatch}
+                  onUpdateBatch={handleUpdateBatch}
+                  onClearDemoData={handleClearDemoData}
+                  onRefreshData={reloadData}
+                  totalRecords={{
+                    ot: overtimeRecords.length,
+                    att: attendanceRecords.length,
+                  }}
+                />
+              )}
 
-            {currentSection === 'catalogs' && (
-              <CatalogsConfigView
-                reasonsCatalog={reasonsCatalog}
-                onSaveReasons={handleSaveReasons}
-                leadersCatalog={departmentLeaders}
-                onSaveLeaders={setDepartmentLeaders}
-                onSaveLeader={handleSaveLeader}
-                onDeleteLeader={handleDeleteLeader}
-                onCreateLeader={handleCreateLeader}
-                thresholds={thresholds}
-                onSaveThresholds={handleSaveThresholds}
-                onRefreshData={reloadData}
-              />
-            )}
-          </Suspense>
+              {currentSection === 'catalogs' && (
+                <CatalogsConfigView
+                  reasonsCatalog={reasonsCatalog}
+                  onSaveReasons={handleSaveReasons}
+                  leadersCatalog={departmentLeaders}
+                  onSaveLeaders={setDepartmentLeaders}
+                  onSaveLeader={handleSaveLeader}
+                  onDeleteLeader={handleDeleteLeader}
+                  onCreateLeader={handleCreateLeader}
+                  thresholds={thresholds}
+                  onSaveThresholds={handleSaveThresholds}
+                  onRefreshData={reloadData}
+                />
+              )}
+            </Suspense>
+          </ViewErrorBoundary>
         </main>
       </div>
 
@@ -758,7 +804,7 @@ export default function App() {
                   setMobileMenuOpen(false);
                 }}
                 collapsed={false}
-                onToggleCollapse={() => {}}
+                onToggleCollapse={() => { }}
                 pendingOtCount={kpis.pendingOtRequests}
                 auditIncidentsCount={auditIncidents.length}
                 isMobileDrawer={true}
@@ -816,7 +862,7 @@ export default function App() {
                   att: attendanceRecords.length,
                 }}
                 isCollapsed={false}
-                onToggleCollapsed={() => {}}
+                onToggleCollapsed={() => { }}
                 hideCollapseButton={true}
                 leaderToDeptMap={baseTeCatalog.leaderToDepartments}
               />
